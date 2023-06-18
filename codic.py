@@ -6,7 +6,7 @@ from pycde.types import Bits, SInt, StructType
 
 Coord_sint = StructType({"x": SInt(32), "y": SInt(32), "theta": SInt(32)})
 Coord_port = StructType({"x": Bits(32), "y": Bits(32), "theta": Bits(32)})
-theta_list: list[int] = [round(math.atan(2 ** (-i)) * 2**30 / math.pi) for i in range(16)]
+theta_list = [round(math.atan(2 ** (-i)) * 2**30 / math.pi) for i in range(16)]
 
 def st_m_op(st, func, conv_st = Coord_sint):
     return conv_st({field[0]: func(st[field[0]]) for field in st.type.fields})

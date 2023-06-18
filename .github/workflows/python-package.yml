@@ -37,8 +37,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Generate RTL
       run: |
-        python codic.py
-        python fir_filter.py
+        python *.py
     #- name: Test with pytest
     #  run: |
     #    pytest
