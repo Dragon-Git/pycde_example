@@ -1,4 +1,4 @@
-from pycde import (System, Module, Clock, Input, Output, InputChannel, OutputChannel, generator, types, dim)
+from pycde import (System, Module, Input, Output, generator, types, dim)
 from pycde.dialects import comb, hw
 
 class Fir(Module):
