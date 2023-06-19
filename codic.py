@@ -26,15 +26,15 @@ class Cordic(Module):
             y_sh = comb.ShrSOp(taps[-1].y.as_bits(), Bits(32)(i)).as_sint()
             with If(dirc):
                 coord_t = Coord_sint({
-                    "x": (taps[-1].x - y_sh).as_bits(32).as_sint(),
-                    "y": (taps[-1].y + x_sh).as_bits(32).as_sint(),
-                    "theta": (taps[-1].theta - SInt(32)(theta_list[i])).as_bits(32).as_sint(),
+                    "x": (taps[-1].x - y_sh).as_sint(32),
+                    "y": (taps[-1].y + x_sh).as_sint(32),
+                    "theta": (taps[-1].theta - SInt(32)(theta_list[i])).as_sint(32),
                 })
             with Else():
                 coord_t = Coord_sint({
-                    "x": (taps[-1].x + y_sh).as_bits(32).as_sint(),
-                    "y": (taps[-1].y - x_sh).as_bits(32).as_sint(),
-                    "theta": (taps[-1].theta + SInt(32)(theta_list[i])).as_bits(32).as_sint(),
+                    "x": (taps[-1].x + y_sh).as_sint(32),
+                    "y": (taps[-1].y - x_sh).as_sint(32),
+                    "theta": (taps[-1].theta + SInt(32)(theta_list[i])).as_sint(32),
                 })
             EndIf()
             taps.append(coord_t)
