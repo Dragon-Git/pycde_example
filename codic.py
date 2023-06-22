@@ -43,5 +43,5 @@ class Cordic(Module):
 
 
 if __name__ == "__main__":
-    mod = System([Cordic], name="ip_codic_lib")
+    mod = System([Cordic], name="ip_codic_lib", output_directory="build/ip_codic_lib")
     mod.compile()

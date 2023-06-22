@@ -19,5 +19,5 @@ class Lfsr(Module):
     ports.cnt = r1.as_uint()
 
 if __name__ == '__main__':
-  mod = System([Lfsr],name="ip_lfsr_lib")
+  mod = System([Lfsr],name="ip_lfsr_lib", output_directory="build/ip_lfsr_lib")
   mod.compile()

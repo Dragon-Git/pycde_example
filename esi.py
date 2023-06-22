@@ -33,5 +33,5 @@ class Top(Module):
     Consumer(clk=ports.clk, int_in=p.const_out)
 
 
-s = pycde.System([Top], name="test_lib")
+s = pycde.System([Top], name="test_lib", output_directory="build/test_lib")
 s.compile()

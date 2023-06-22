@@ -18,7 +18,7 @@ with Context() as ctx, Location.unknown():
                   output_ports=[(chr(i), i32) for i in range(92)],
                   body_builder=_default)
     
-  mod: object = System([],name="circt_api_lib")
+  mod: object = System([],name="circt_api_lib", output_directory="build/circt_api_lib")
   mod.import_mlir(m)
   mod.passed = True
   mod.compile()

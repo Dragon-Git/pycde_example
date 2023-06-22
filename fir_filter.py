@@ -20,5 +20,5 @@ class Fir(Module):
     ports.data_out = ps
 
 
-mod = System([Fir],name="ip_fir_lib")
+mod = System([Fir],name="ip_fir_lib", output_directory="build/ip_fir_lib")
 mod.compile()

@@ -20,5 +20,5 @@ class Counter(Module):
     # ports.cnt = r1
 
 if __name__ == '__main__':
-  mod = System([Counter],name="ip_cnt_lib")
+  mod = System([Counter],name="ip_cnt_lib", output_directory="build/ip_cnt_lib")
   mod.compile()

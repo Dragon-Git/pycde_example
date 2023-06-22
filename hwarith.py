@@ -14,5 +14,5 @@ class Test_hwarith(Module):
         ports.e = (ports.a * ports.b).as_bits(32).reg(ports.clk, ports.rst)
         ports.f = (ports.a / ports.b).as_bits(32).reg(ports.clk, ports.rst)
 
-mod = System([Test_hwarith], name="test_lib")
+mod = System([Test_hwarith], name="test_lib", output_directory="build/test_lib")
 mod.compile()
