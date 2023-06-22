@@ -2,7 +2,6 @@ from pycde import (System, Module, Clock, Input, Output, generator, types, dim)
 from pycde.dialects import comb, hw
 from pycde.types import Bits, SInt, UInt
 from pycde.constructs import Mux
-from pycde.dialects import hw
 from pycde.signals import ArraySignal
 
 XLEN = 32
@@ -16,13 +15,15 @@ class Immgen(Module):
     def build(io):
 
         lookup = ArraySignal.create([
-            io.insn.as_sint(XLEN), # TODO: cut and extension 
-            io.insn.as_sint(XLEN),
-            io.insn.as_sint(XLEN),
-            io.insn.as_sint(XLEN),
-            io.insn.as_sint(XLEN),
-            io.insn.as_sint(XLEN),
             SInt(XLEN)(-2),
+            io.insn[12:].as_sint().as_sint(XLEN), 
+            comb.ConcatOp(io.insn[25:], io.insn[7:12]).as_sint().as_sint(XLEN),
+            comb.ConcatOp(io.insn[12:], Bits(12)(0)).as_sint().as_sint(XLEN),
+            comb.ConcatOp(io.insn[31], io.insn[12:20], io.insn[20], io.insn[25:31],
+                           io.insn[21:25], Bits(1)(0)).as_sint().as_sint(XLEN),
+            comb.ConcatOp(io.insn[31], io.insn[7], io.insn[25:31], io.insn[8:12]
+                          ).as_sint().as_sint(XLEN),
+            io.insn[15:20].as_sint().as_sint(XLEN),
             SInt(XLEN)(-2),
         ])
         io.out = lookup[io.sel]
