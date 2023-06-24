@@ -37,7 +37,7 @@ class ALU(Module):
             io.B,
         ])
         io.out = lookup[io.alu_op]
-        io.sum = Mux(io.alu_op.as_bits(1), io.A + io.B, io.A - io.B).as_sint(width)
+        io.sum = Mux(io.alu_op.as_uint(1).as_bits(1), io.A + io.B, io.A - io.B).as_sint(width)
 
 if __name__ == '__main__':
     mod = System([ALU],name="ip_riscv_lib", output_directory="build/ip_riscv_lib")
