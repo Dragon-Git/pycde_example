@@ -1,6 +1,6 @@
-from pycde import (System, Module, Clock, Input, Output, generator, types, dim)
-from pycde.dialects import comb, hw
-from pycde.types import Bits, SInt, UInt
+from pycde import (System, Module, Clock, Input, Output, generator, types)  # noqa: F401
+from pycde.dialects import comb, hw  # noqa: F401
+from pycde.types import Bits, SInt, UInt  # noqa: F401
 from pycde.constructs import Mux
 from pycde.signals import ArraySignal
 

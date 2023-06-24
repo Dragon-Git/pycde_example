@@ -9,4 +9,11 @@
 ## riscv-mini 
 - [alu](alu.py)  
 - [bru](bru.py)  
+- [cache](cache.py)
 - [immgen](immgen.py)  
+- [regfile](regfile.py)
+
+# TODO：
+- [ ] multiport ram
+- [ ] reg array
+- [ ] bitpat
