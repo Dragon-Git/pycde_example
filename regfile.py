@@ -26,8 +26,8 @@ class Regfile(Module):
         rs1_read_data = RamI32x32.read(rs1_read_address, "rs1_read")
         rs1_read_address.assign(Regfile_io.read(rs1_read_data, "rs1_read"))
 
-	rs2_read_address = Wire(RamI32x32.read.to_server_type)                                                                     
-        rs2_read_data = RamI32x32.read(rs2_read_address, "rs2_read")                                                                               
+        rs2_read_address = Wire(RamI32x32.read.to_server_type)
+        rs2_read_data = RamI32x32.read(rs2_read_address, "rs2_read")
         rs2_read_address.assign(Regfile_io.read(rs2_read_data, "rs2_read"))
  
         RamI32x32.instantiate_builtin("sv_mem", [], inputs=[io.clk, io.rst])
