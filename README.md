@@ -14,6 +14,6 @@
 - [regfile](regfile.py)
 
 # TODO：
-- [ ] multiport ram
-- [ ] reg array
+- [ ] axi-lite
+- [ ] cache
 - [ ] bitpat
