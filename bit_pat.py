@@ -6,7 +6,7 @@ import string
 
 from pycde.types import Bits
 from pycde.signals import BitVectorSignal
-from pycde.construct import Mux
+from pycde.constructs import Mux
 
 
 class BitPat:
@@ -44,7 +44,7 @@ class BitPat:
         self.__hash = hash(pattern)
 
     def __eq__(self, other):
-        if not isinstance(other, BitVcetorSignal):
+        if not isinstance(other, BitVectorSignal):
             raise TypeError(
                 "BitPattern can only be compared to Bits"
             )
