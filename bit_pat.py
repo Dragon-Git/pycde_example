@@ -5,6 +5,8 @@ https://github.com/freechipsproject/chisel3/blob/v3.3.2/src/main/scala/chisel3/u
 import string
 
 from pycde.types import Bits
+from pycde.signals import BitVectorSignal
+from pycde.construct import Mux
 
 
 class BitPat:
@@ -42,7 +44,7 @@ class BitPat:
         self.__hash = hash(pattern)
 
     def __eq__(self, other):
-        if not isinstance(other, Bits):
+        if not isinstance(other, BitVcetorSignal):
             raise TypeError(
                 "BitPattern can only be compared to Bits"
             )
@@ -57,3 +59,10 @@ class BitPat:
 
     def __hash__(self):
         return self.__hash
+
+def dict_lookup(dict_, select, default):
+    output = default
+    for key, value in dict_.items():
+        output = Mux(key == select, output, value)
+    return output
+
