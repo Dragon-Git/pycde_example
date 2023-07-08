@@ -16,4 +16,4 @@
 # TODO：
 - [ ] axi-lite
 - [ ] cache
-- [ ] bitpat
+- [ ] Tile

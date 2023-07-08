@@ -40,7 +40,7 @@ class BitPat:
         self.bits = Bits(count)(bits)
         self.mask = Bits(count)(mask)
         self.width = count
-        self.const = self.mask == ((1 << self.width) - 1)
+        self.const = self.mask == Bits(count)((1 << self.width) - 1)
         self.__hash = hash(pattern)
 
     def __eq__(self, other):
@@ -61,6 +61,12 @@ class BitPat:
         return self.__hash
 
 def dict_lookup(dict_, select, default):
+    """
+    Use `select` as an index into `dict` (similar to a case statement)
+
+    `default` is used when `select` does not match any of the keys and has a
+    default value of 0
+    """
     output = default
     for key, value in dict_.items():
         output = Mux(key == select, output, value)
