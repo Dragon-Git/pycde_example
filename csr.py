@@ -60,3 +60,7 @@ class CSR:
             instretw, cyclehw, timehw, instrethw, mcpuid, mimpid, mhartid,
             mtvec, mtdeleg, mie, mtimecmp, mtime, mtimeh, mscratch, mepc,
             mcause, mbadaddr, mip, mtohost, mfromhost, mstatus)
+    
+    @classmethod
+    def getname(cls, var):
+        return [name for name, value in vars(cls).items() if value is var][0]
