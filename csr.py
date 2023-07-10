@@ -1,5 +1,26 @@
-from pycde.types import Bits
+from dataclasses import dataclass
+from pycde.types import Bits, UInt
+from pycde.constructs import Mux, Reg
+from pycde.signals import ArraySignal, BitsSignal, Or
 
+# CSR_REG = namedtuple("CSR_REG", "name addr access value next")
+@dataclass()
+class CSR_REG:
+    name:str
+    addr:Bits(12)
+    access:str
+    value:any
+    next:any = None
+
+    def __post_init__(self):
+        self.value.name = self.name
+        if self.access == "RW":
+            self.next = self.value
+
+    def __hash__(self):
+        return(hash(self.name))
+
+XLEN = 32
 
 class CSR:
     N = Bits(3)(0)
@@ -13,54 +34,57 @@ class CSR:
     PRV_M = Bits(2)(0x3)
 
     # User-level CSR addrs
-    cycle = Bits(12)(0xc00)
-    time = Bits(12)(0xc01)
-    instret = Bits(12)(0xc02)
-    cycleh = Bits(12)(0xc80)
-    timeh = Bits(12)(0xc81)
-    instreth = Bits(12)(0xc82)
+    cycle = CSR_REG("cycle", Bits(12)(0xc00), "RW", Reg(Bits(XLEN)))
+    time = CSR_REG("time", Bits(12)(0xc01), "RW", Reg(Bits(XLEN)))
+    instret = CSR_REG("instret", Bits(12)(0xc02), "RW", Reg(Bits(XLEN)))
+    cycleh = CSR_REG("cycleh", Bits(12)(0xc80), "RW", Reg(Bits(XLEN)))
+    timeh = CSR_REG("timeh", Bits(12)(0xc81), "RW", Reg(Bits(XLEN)))
+    instreth = CSR_REG("instreth", Bits(12)(0xc82), "RW", Reg(Bits(XLEN)))
 
     # Supervisor-level CSR addrs
-    cyclew = Bits(12)(0x900)
-    timew = Bits(12)(0x901)
-    instretw = Bits(12)(0x902)
-    cyclehw = Bits(12)(0x980)
-    timehw = Bits(12)(0x981)
-    instrethw = Bits(12)(0x982)
+    cyclew = CSR_REG("cycle", Bits(12)(0x900), "RW", cycle.value)
+    timew = CSR_REG("time", Bits(12)(0x901), "RW", time.value)
+    instretw = CSR_REG("instret", Bits(12)(0x902), "RW", instret.value)
+    cyclehw = CSR_REG("cycleh", Bits(12)(0x980), "RW", cycleh.value)
+    timehw = CSR_REG("timeh", Bits(12)(0x981), "RW", timeh.value)
+    instrethw = CSR_REG("instreth", Bits(12)(0x982), "RW", instreth.value)
 
     # Machine-level CSR addrs
     # Machine Information Registers
-    mcpuid = Bits(12)(0xf00)
-    mimpid = Bits(12)(0xf01)
-    mhartid = Bits(12)(0xf10)
+    mcpuid = CSR_REG("mcpuid", Bits(12)(0xf00), "RO", BitsSignal.concat([
+            Bits(26)(1 << (ord('I') - ord('A')) |  # Base ISA
+                   1 << (ord('U') - ord('A'))),  # User Mode
+            Bits(XLEN - 28)(0),
+            Bits(2)(0),  # RV32I
+        ])
+        )
+    mimpid = CSR_REG("mimpid", Bits(12)(0xf01), "RO", Bits(XLEN)(0))
+    mhartid = CSR_REG("mhartid", Bits(12)(0xf10), "RO", Bits(XLEN)(0))
 
     # Machine Trap Setup
-    mstatus = Bits(12)(0x300)
-    mtvec = Bits(12)(0x301)
-    mtdeleg = Bits(12)(0x302)
-    mie = Bits(12)(0x304)
-    mtimecmp = Bits(12)(0x321)
+    mstatus = CSR_REG("mstatus", Bits(12)(0x300), "RW", Reg(Bits(XLEN)))
+    mtvec = CSR_REG("mtvec", Bits(12)(0x301), "RW", Reg(Bits(XLEN)))
+    mtdeleg = CSR_REG("mtdeleg", Bits(12)(0x302), "RW", Reg(Bits(XLEN)))
+    mie = CSR_REG("mie", Bits(12)(0x304), "RW", Reg(Bits(XLEN)))
+    mtimecmp = CSR_REG("mtimecmp", Bits(12)(0x321), "RW", Reg(Bits(XLEN)))
 
     # Machine Timers and Counters
-    mtime = Bits(12)(0x701)
-    mtimeh = Bits(12)(0x741)
+    mtime = CSR_REG("time", Bits(12)(0x701), "RW", time.value)
+    mtimeh = CSR_REG("timeh", Bits(12)(0x741), "RW", timeh.value)
 
     # Machine Trap Handling
-    mscratch = Bits(12)(0x340)
-    mepc = Bits(12)(0x341)
-    mcause = Bits(12)(0x342)
-    mbadaddr = Bits(12)(0x343)
-    mip = Bits(12)(0x344)
+    mscratch = CSR_REG("mscratch", Bits(12)(0x340), "RW", Reg(Bits(XLEN)))
+    mepc = CSR_REG("mepc", Bits(12)(0x341), "RW", Reg(Bits(XLEN)))
+    mcause = CSR_REG("mcause", Bits(12)(0x342), "RW", Reg(Bits(XLEN)))
+    mbadaddr = CSR_REG("mbadaddr", Bits(12)(0x343), "RW", Reg(Bits(XLEN)))
+    mip = CSR_REG("mip", Bits(12)(0x344), "RW", Reg(Bits(XLEN)))
 
     # Machine HITF
-    mtohost = Bits(12)(0x780)
-    mfromhost = Bits(12)(0x781)
+    mtohost = CSR_REG("mtohost", Bits(12)(0x780), "RW", Reg(Bits(XLEN)))
+    mfromhost = CSR_REG("mfromhost", Bits(12)(0x781), "RW", Reg(Bits(XLEN)))
 
     regs = (cycle, time, instret, cycleh, timeh, instreth, cyclew, timew,
             instretw, cyclehw, timehw, instrethw, mcpuid, mimpid, mhartid,
             mtvec, mtdeleg, mie, mtimecmp, mtime, mtimeh, mscratch, mepc,
             mcause, mbadaddr, mip, mtohost, mfromhost, mstatus)
     
-    @classmethod
-    def getname(cls, var):
-        return [name for name, value in vars(cls).items() if value is var][0]
