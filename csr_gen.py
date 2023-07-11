@@ -113,11 +113,10 @@ class CSRGen(Module):
         reg_assign_dict = {}
         for reg in CSR.regs:
             if reg.access == "RW":
-                reg.next = Mux((reg.addr == csr_addr) & wen, reg.next, wdata)
                 if reg in reg_assign_dict:
-                    reg_assign_dict[reg] |= reg.next    # ERROR ???
+                    reg_assign_dict[reg] = Mux((reg.addr == csr_addr) & wen, reg_assign_dict[reg], wdata)
                 else:
-                    reg_assign_dict[reg] = reg.next
+                    reg_assign_dict[reg] = Mux((reg.addr == csr_addr) & wen, reg.next, wdata)
 
         # assign block
         for reg, next in reg_assign_dict.items():
