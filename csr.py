@@ -3,7 +3,7 @@ from pycde.types import Bits, UInt
 from pycde.constructs import Mux, Reg
 from pycde.signals import ArraySignal, BitsSignal, Or
 
-# CSR_REG = namedtuple("CSR_REG", "name addr access value next")
+from const import Const
 @dataclass()
 class CSR_REG:
     name:str
@@ -63,8 +63,8 @@ class CSR:
 
     # Machine Trap Setup
     mstatus = CSR_REG("mstatus", Bits(12)(0x300), "RW", Reg(Bits(XLEN)))
-    mtvec = CSR_REG("mtvec", Bits(12)(0x301), "RW", Reg(Bits(XLEN)))
-    mtdeleg = CSR_REG("mtdeleg", Bits(12)(0x302), "RW", Reg(Bits(XLEN)))
+    mtvec = CSR_REG("mtvec", Bits(12)(0x301), "RO", Const.PC_EVEC)
+    mtdeleg = CSR_REG("mtdeleg", Bits(12)(0x302), "RO", Bits(XLEN)(0))
     mie = CSR_REG("mie", Bits(12)(0x304), "RW", Reg(Bits(XLEN)))
     mtimecmp = CSR_REG("mtimecmp", Bits(12)(0x321), "RW", Reg(Bits(XLEN)))
 

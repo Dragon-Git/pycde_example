@@ -42,11 +42,12 @@ class CSRGen(Module):
         from csr import CSR
         import instructions as rv32i
 
+        Cause = make_Cause(XLEN)
         csr_addr = io.inst[20:32]
         rs1_addr = io.inst[15:20]
 
         # read block
-        lookup = Bits(32)(0)
+        lookup = Bits(XLEN)(0)
         for reg in CSR.regs:
             is_reg = reg.addr == csr_addr
             is_reg.name = f"lookup_{reg.name}"
@@ -86,29 +87,37 @@ class CSRGen(Module):
                 (io.cmd[0] | io.cmd[1]) &
                 (~csr_valid | ~priv_valid) | wen & csr_RO |
                 (priv_inst & ~priv_valid) | is_E_call | is_E_break)
-        io.expt = expt.reg()
+        io.expt = expt
         io.evec = Bits(XLEN)(0)
         io.epc = CSR.mepc.value
 
-        is_inst_ret = (((io.inst != rv32i.NOP) & (~expt | is_E_call | is_E_break) & ~io.stall)).reg()
+        is_inst_ret = ((io.inst != rv32i.NOP) & (~expt | is_E_call | is_E_break) & ~io.stall)
         is_inst_ret.name="is_inst_ret"
 
-        is_inst_reth = (is_inst_ret & And(*[CSR.instret.value.as_bits()[i] for i in range(len(CSR.instret.value))])).reg()
+        is_inst_reth = is_inst_ret & And(*[CSR.instret.value.as_bits()[i] for i in range(len(CSR.instret.value))])
         is_inst_reth.name="is_inst_reth"
 
-        not_stall = (~io.stall).reg()
-        not_stall.name="not_stall"
-
-        is_mbadaddr = (iaddr_invalid | laddr_invalid | saddr_invalid).reg()
+        is_mbadaddr = (iaddr_invalid | laddr_invalid | saddr_invalid)
         is_mbadaddr.name="is_mbadaddr"
 
         # Counters
         CSR.time.next = (CSR.time.value.as_uint(32) + 1).as_bits(32)
-        CSR.timeh.next = Mux(And(*[CSR.time.value[i] for i in range(len(CSR.time.value))]), CSR.timeh.value, (CSR.timeh.value.as_uint(32) + 1).as_bits(32))
+        CSR.timeh.next = Mux(And(*[CSR.time.value[i] for i in range(len(CSR.time.value))]), CSR.timeh.value, (CSR.timeh.value.as_uint(XLEN) + 1).as_bits(XLEN))
         CSR.cycle.next = (CSR.cycle.value.as_uint(32) + 1).as_bits(32)
-        CSR.cycleh.next = Mux(And(*[CSR.cycle.value[i] for i in range(len(CSR.cycle.value))]), CSR.cycleh.value, (CSR.cycleh.value.as_uint(32) + 1).as_bits(32))
-        CSR.instret.next = Mux(is_inst_ret, CSR.instret.value, (CSR.instret.value.as_uint(32) + 1).as_bits(32))
-        CSR.instreth.next = Mux(is_inst_reth, CSR.instreth.value, (CSR.instreth.value.as_uint(32) + 1).as_bits(32))
+        CSR.cycleh.next = Mux(And(*[CSR.cycle.value[i] for i in range(len(CSR.cycle.value))]), CSR.cycleh.value, (CSR.cycleh.value.as_uint(XLEN) + 1).as_bits(XLEN))
+        CSR.instret.next = Mux(is_inst_ret, CSR.instret.value, (CSR.instret.value.as_uint(XLEN) + 1).as_bits(XLEN))
+        CSR.instreth.next = Mux(is_inst_reth, CSR.instreth.value, (CSR.instreth.value.as_uint(XLEN) + 1).as_bits(XLEN))
+
+        CSR.mepc.next   = Mux(~io.stall & expt, CSR.mepc.next, io.pc & Bits(XLEN)((1<<XLEN)-4))
+        CSR.mcause.next = Mux(~io.stall & expt & iaddr_invalid, Cause.InstAddrMisaligned,
+                Mux(~io.stall & expt & laddr_invalid, Cause.LoadAddrMisaligned,
+                Mux(~io.stall & expt & saddr_invalid, Cause.StoreAddrMisaligned,
+                Mux(~io.stall & expt & is_E_call,     Cause.Ecall, # need add PRV
+                Mux(~io.stall & expt & is_E_break,    Cause.Breakpoint, Cause.IllegalInst)))))
+        CSR.mbadaddr.next   = Mux(~io.stall & expt & is_mbadaddr, CSR.mbadaddr.next, io.addr)
+        CSR.mstatus.next   = Mux(~io.stall & expt, CSR.mstatus.next, BitsSignal.concat([CSR.mstatus.next.as_bits()[6:], CSR.mstatus.next.as_bits()[:3], CSR.PRV_M, Bits(1)(0)]))
+        CSR.mstatus.next   = Mux(~io.stall & is_E_ret, CSR.mstatus.next, BitsSignal.concat([CSR.mstatus.next.as_bits()[6:], CSR.PRV_U, Bits(1)(1), CSR.mstatus.next.as_bits()[3:6]]))
+
 
         reg_assign_dict = {}
         for reg in CSR.regs:
