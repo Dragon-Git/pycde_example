@@ -7,11 +7,11 @@
 - [lfsr](lfsr.py)
 
 ## riscv-mini 
-- [alu](alu.py)  
-- [bru](bru.py)  
-- [cache](cache.py)
-- [immgen](immgen.py)  
-- [regfile](regfile.py)
+- [alu](mini_riscv/alu.py)  
+- [bru](mini_riscv/bru.py)  
+- [cache](mini_riscv/cache.py)
+- [immgen](mini_riscv/immgen.py)  
+- [regfile](mini_riscv/regfile.py)
 
 # TODO：
 - [ ] axi-lite

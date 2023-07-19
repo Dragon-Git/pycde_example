@@ -1,0 +1,10 @@
+[project]
+
+dependencies = [
+    "PyYAML",
+    "cocotb",
+    "pycde",
+]
+
+[tool.ruff]
+line-length = 120
