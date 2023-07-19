@@ -39,7 +39,7 @@ jobs:
       run: |
         mkdir build
         python *.py
-        python mini-riscv/*.py
+        python */*.py
     #- name: Test with pytest
     #  run: |
     #    pytest
