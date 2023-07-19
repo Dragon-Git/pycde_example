@@ -1,4 +1,3 @@
-import math
 import pycde
 from pycde import (Output, Input, Module, generator, System)
 from pycde.types import Bits, SInt, UInt  # noqa: F401
@@ -7,8 +6,8 @@ from pycde.constructs import ControlReg, NamedWire, Reg, Wire, Mux  # noqa: F401
 from pycde.behavioral import If, Else, EndIf
 
 @pycde.modparams
-def counter(limit, inc = 1):
-  width = math.ceil(math.log2(limit))
+def counter(limit:int, inc = 1):
+  width = limit.bit_length()
   class Counter(Module):
     clk = Clock()
     rst = Reset()
