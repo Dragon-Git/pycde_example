@@ -3,19 +3,14 @@ name = "pycde_example"
 version = "0.1.0"
 description = "A collection of examples showcasing PyCDE and Mini RISC-V implementation."
 authors = [
-    { name="Dragon-Git", email="1762578117@qq.com" },
+    "Dragon-Git <1762578117@qq.com>",
 ]
-readme = "README.md"
-requires-python = ">=3.8"
+
 dependencies = [
     "PyYAML",
     "cocotb",
     "pycde",
 ]
-
-[project.urls]
-"Homepage" = "https://github.com//Dragon-Git/pycde_example"
-"Bug Tracker" = "https://github.com//Dragon-Git/pycde_example/issues"
 
 [tool.ruff]
 line-length = 120
