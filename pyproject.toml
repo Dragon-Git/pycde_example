@@ -1,4 +1,10 @@
 [project]
+name = "pycde_example"
+version = "0.1.0"
+description = "A collection of examples showcasing PyCDE and Mini RISC-V implementation."
+authors = [
+    "Dragon-Git",
+]
 
 dependencies = [
     "PyYAML",
