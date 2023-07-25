@@ -24,9 +24,9 @@ class ALU(Module):
             (io.A.as_bits() & io.B.as_bits()).as_sint(width),
             (io.A.as_bits() | io.B.as_bits()).as_sint(width),
             (io.A.as_bits() ^ io.B.as_bits()).as_sint(width),
-            io.A, # (io.A < io.B).as_sint(width),
+            (io.A < io.B).as_sint(width),
             comb.ShlOp(io.A.as_bits(), shamt).as_sint(width),
-            io.A, # (io.A.as_uint() < io.B.as_uint()).as_sint(width),
+            (io.A.as_uint() < io.B.as_uint()).as_sint(width),
             comb.ShrUOp(io.A.as_bits(), shamt).as_sint(width),
             comb.ShrSOp(io.A.as_bits(), shamt).as_sint(width),
             io.A,
@@ -35,7 +35,7 @@ class ALU(Module):
             io.B,
             io.B,
             io.B,
-        ])
+        ][::-1])
         io.out = lookup[io.alu_op]
         io.sum = Mux(io.alu_op[0], io.A + io.B, io.A - io.B).as_sint(width)
 

@@ -17,14 +17,14 @@ class BRU(Module):
 
         lookup = ArraySignal.create([
             io.rs1 != io.rs1,
-            io.rs1 == io.rs1, # TODO:NotImplemented
-            io.rs1 == io.rs1, # TODO:NotImplemented
+            io.rs1.as_uint() < io.rs2.as_uint(),
+            io.rs1 < io.rs2,
             io.rs1 == io.rs2,
-            io.rs2 != io.rs2, # TODO:NotImplemented
-            io.rs2 != io.rs2, # TODO:NotImplemented
+            io.rs1.as_uint() >= io.rs2.as_uint(),
+            io.rs1 >= io.rs2,
             io.rs1 != io.rs2,
-            io.rs2 != io.rs2,
-        ])
+            io.rs1 != io.rs1,
+        ][::-1])
         io.taken = lookup[io.br_type].as_bits(1)
 
 if __name__ == '__main__':
