@@ -3,20 +3,22 @@ from pycde.types import Bits, SInt, UInt  # noqa: F401
 from pycde.constructs import ControlReg, NamedWire, Reg, Wire  # noqa: F401
 from pycde.dialects import comb
 
+POLY = [7, 5, 4, 3]
+WIDTH = max(POLY) +1
+
 class Lfsr(Module):
   clk = Clock()
   rst = Input(Bits(1))
-  seed = Input(UInt(8))
-  cnt = Output(UInt(8))
+  seed = Input(UInt(WIDTH))
+  cnt = Output(UInt(WIDTH))
 
   @generator
-  def construct(ports):
-    w1 = Wire(Bits(8))
-    r1 = w1.reg(ports.clk, ports.rst)
+  def construct(io):
+    r1 = Reg(Bits(WIDTH), io.clk, io.rst, io.seed)
     r1.name = "Lfsr"
-    w2 = r1[7] ^ r1[5] ^ r1[4] ^ r1[3]
-    w1.assign(comb.ConcatOp(r1[0:7], w2))
-    ports.cnt = r1.as_uint()
+    w2 = comb.XorOp(*[r1[i] for i in POLY])
+    w1.assign(comb.ConcatOp(r1[0:-1], w2))
+    io.cnt = r1.as_uint()
 
 if __name__ == '__main__':
   mod = System([Lfsr],name="ip_lfsr_lib", output_directory="build/ip_lfsr_lib")
