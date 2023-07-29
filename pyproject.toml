@@ -17,5 +17,14 @@ dependencies = [
 "Homepage" = "https://github.com//Dragon-Git/pycde_example"
 "Bug Tracker" = "https://github.com//Dragon-Git/pycde_example/issues"
 
+# https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html
+[tool.black]
+line-length = 120
+
+# https://beta.ruff.rs/docs/settings/
 [tool.ruff]
 line-length = 120
+
+[tool.ruff.pydocstyle]
+    convention = "google"
+    
