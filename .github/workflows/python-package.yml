@@ -47,8 +47,8 @@ jobs:
     - name: Generate RTL
       run: |
         mkdir build
-        python *.py
-        python */*.py
+        python pycde_example/*.py
+        python pycde_example/*/*.py
 
     - name: Test with tox
       run: tox
