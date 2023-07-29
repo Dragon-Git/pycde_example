@@ -1,5 +1,7 @@
 # pycde_example
 
+[![Build Status](https://github.com/Dragon-Git/pycde_example/actions/workflows/python-package.yml/badge.svg)](https://github.com/Dragon-Git/pycde_example/actions)
+
 ## Getting Started
 
 ### Dependencies Installation  
