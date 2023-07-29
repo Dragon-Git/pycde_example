@@ -3,10 +3,8 @@ from pycde.common import Clock, Reset
 from pycde.dialects import comb, hw  # noqa: F401
 from pycde.types import Bits, SInt, UInt  # noqa: F401
 from pycde.constructs import ControlReg, NamedWire, Reg, Wire, Mux  # noqa: F401
-from pycde.behavioral import If, Else, EndIf
-from pycde.signals import ArraySignal
 
-from .regfile import Regfile, RamI32x32, Regfile_io, WriteType
+from .regfile import Regfile, WriteType
 from .alu import ALU
 from .bru import BRU
 from .immgen import Immgen
@@ -39,17 +37,17 @@ class Datapath(Module):
 
         # regFile read
         rd_addr  = fe_inst[7:12]
-        rs1_addr = fe_inst[15:20]
-        rs2_addr = fe_inst[20:25]
+        fe_inst[15:20]
+        fe_inst[20:25]
         (write_data, _) = WriteType.wrap({'data': fe_inst, 'address': rd_addr}, Bits(1)(1))
-        reg_file = Regfile(clk=io.clk, rst=io.rst)
+        Regfile(clk=io.clk, rst=io.rst)
         # reg_file.unwrap()
         # reg_file.write(Regfile_io.write("write"))
         # regFile.io.raddr1 := rs1_addr
         # regFile.io.raddr2 := rs2_addr
 
         # // gen immdeates
-        imm = Immgen(insn = fe_inst, sel = io.imm_sel)
+        Immgen(insn = fe_inst, sel = io.imm_sel)
 
         # bypass
         # wb_rd_addr = ew_inst(11, 7)

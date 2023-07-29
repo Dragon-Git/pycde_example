@@ -24,24 +24,24 @@ If you use other OS or other version of python, you can build pycde for your own
 Create a directory named "build", and execute the corresponding .py file with Python to generate the desired SystemVerilog file and its dependent SystemVerilog files, for example:
 ```bash
 mkdir build
-python lfsr.py
+python pycde_example/lfsr.py
 ```
 
 ## Example List  
 
 ### common_ip
-- [codic](codic.py) 
-- [counter](counter.py) 
-- [fir_filter](fir_filter.py) 
-- [hwarith](hwarith.py) 
-- [lfsr](lfsr.py)
+- [codic](pycde_example/codic.py) 
+- [counter](pycde_example/counter.py) 
+- [fir_filter](pycde_example/fir_filter.py) 
+- [hwarith](pycde_example/hwarith.py) 
+- [lfsr](pycde_example/lfsr.py)
 
 ### riscv-mini 
-- [alu](mini_riscv/alu.py)  
-- [bru](mini_riscv/bru.py)  
-- [cache](mini_riscv/cache.py)
-- [immgen](mini_riscv/immgen.py)  
-- [regfile](mini_riscv/regfile.py)
+- [alu](pycde_example/mini_riscv/alu.py)  
+- [bru](pycde_example/mini_riscv/bru.py)  
+- [cache](pycde_example/mini_riscv/cache.py)
+- [immgen](pycde_example/mini_riscv/immgen.py)  
+- [regfile](pycde_example/mini_riscv/regfile.py)
 
 ## TODO：
 - [ ] axi-lite

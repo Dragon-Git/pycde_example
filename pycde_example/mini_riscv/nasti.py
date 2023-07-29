@@ -1,6 +1,4 @@
-from pycde import (Clock, Input, Module, System, generator)
 from pycde.types import Bits, SInt, UInt, types  # noqa: F401
-from pycde.constructs import Wire
 from pycde import esi, signal
 
 class NastiParameters:

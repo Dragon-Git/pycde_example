@@ -1,4 +1,4 @@
-from pycde.types import Bits, UInt
+from pycde.types import Bits
 
 XLEN = 32
 class Const:

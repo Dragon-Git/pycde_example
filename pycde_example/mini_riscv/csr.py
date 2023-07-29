@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from pycde.types import Bits, UInt
-from pycde.constructs import Mux, Reg
-from pycde.signals import ArraySignal, BitsSignal, Or
+from pycde.types import Bits
+from pycde.constructs import Reg
+from pycde.signals import BitsSignal
 
 from const import Const
 @dataclass()

@@ -1,8 +1,6 @@
-from pycde import System, Module, Clock, Input, Output, generator, types, dim
-from pycde.types import Bits, SInt, UInt, List
-from pycde.constructs import Mux
-from pycde.dialects import comb
-from pycde.signals import ArraySignal, BitsSignal
+from pycde import System, Module, Input, Output, generator
+from pycde.types import Bits
+from pycde.signals import BitsSignal
 
 from bit_pat import dict_lookup
 

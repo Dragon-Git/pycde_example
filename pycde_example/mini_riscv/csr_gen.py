@@ -1,9 +1,8 @@
 from pycde import (System, Module, Input, Output, generator, types, dim)  # noqa: F401
 from pycde.common import Clock, Reset
 from pycde.types import Bits, SInt, UInt, List  # noqa: F401
-from pycde.behavioral import If, Else, EndIf
-from pycde.constructs import Mux, Reg
-from pycde.signals import ArraySignal, BitsSignal, Or, And
+from pycde.constructs import Mux
+from pycde.signals import BitsSignal, Or, And
 
 XLEN = 32
 
@@ -102,9 +101,9 @@ class CSRGen(Module):
 
         # Counters
         CSR.time.next = (CSR.time.value.as_uint(32) + 1).as_bits(32)
-        CSR.timeh.next = Mux(And(*[CSR.time.value[i] for i in range(len(CSR.time.value))]), CSR.timeh.value, (CSR.timeh.value.as_uint(XLEN) + 1).as_bits(XLEN))
+        CSR.timeh.next = Mux(CSR.time.value.and_reduce(), CSR.timeh.value, (CSR.timeh.value.as_uint(XLEN) + 1).as_bits(XLEN))  # noqa: E501
         CSR.cycle.next = (CSR.cycle.value.as_uint(32) + 1).as_bits(32)
-        CSR.cycleh.next = Mux(And(*[CSR.cycle.value[i] for i in range(len(CSR.cycle.value))]), CSR.cycleh.value, (CSR.cycleh.value.as_uint(XLEN) + 1).as_bits(XLEN))
+        CSR.cycleh.next = Mux(CSR.cycle.value.and_reduce(), CSR.cycleh.value, (CSR.cycleh.value.as_uint(XLEN) + 1).as_bits(XLEN))  # noqa: E501
         CSR.instret.next = Mux(is_inst_ret, CSR.instret.value, (CSR.instret.value.as_uint(XLEN) + 1).as_bits(XLEN))
         CSR.instreth.next = Mux(is_inst_reth, CSR.instreth.value, (CSR.instreth.value.as_uint(XLEN) + 1).as_bits(XLEN))
 

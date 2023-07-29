@@ -13,6 +13,12 @@ dependencies = [
     "pycde>=0.2.1.dev1064, <0.3.0",
 ]
 
+[project.optional-dependencies]
+lint = ['ruff']
+doc = ['sphinx']
+test = ['pytest', 'tox']
+dev = ['pycde_example[lint, doc, test]']
+
 [project.urls]
 "Homepage" = "https://github.com//Dragon-Git/pycde_example"
 "Bug Tracker" = "https://github.com//Dragon-Git/pycde_example/issues"

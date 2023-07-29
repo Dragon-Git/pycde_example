@@ -1,7 +1,5 @@
-from pycde import (System, Module, Clock, Input, Output, generator, types, dim)
-from pycde.dialects import comb, hw
-from pycde.types import Bits, SInt, UInt
-from pycde.constructs import Mux
+from pycde import (System, Module, Input, Output, generator)
+from pycde.types import Bits, SInt
 from pycde.signals import ArraySignal
 
 XLEN = 32
