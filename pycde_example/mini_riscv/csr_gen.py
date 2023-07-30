@@ -1,10 +1,19 @@
 from pycde import (System, Module, Input, Output, generator, types, dim)  # noqa: F401
 from pycde.common import Clock, Reset
-from pycde.types import Bits, SInt, UInt, List  # noqa: F401
+from pycde.types import Bits  # noqa: F401
 from pycde.constructs import Mux
 from pycde.signals import BitsSignal, Or, And
 
 XLEN = 32
+
+def make_CSR_CMD():
+    class CSR_CMD:
+        N = Bits(3)(0)
+        W = Bits(3)(1)
+        S = Bits(3)(2)
+        C = Bits(3)(3)
+        P = Bits(3)(4)
+    return CSR_CMD
 
 def make_Cause(XLEN):
     class Cause:
@@ -27,7 +36,7 @@ class CSRGen(Module):
     # Excpetion
     pc = Input(Bits(XLEN))
     addr = Input(Bits(XLEN))
-    inst = Input(Bits(XLEN))
+    insn = Input(Bits(XLEN))
     illegal = Input(Bits(1))
     st_type = Input(Bits(2))
     ld_type = Input(Bits(3))
@@ -38,12 +47,13 @@ class CSRGen(Module):
   
     @generator
     def build(io):
-        from csr import CSR
-        import instructions as rv32i
+        from .csr import CSR
+        from . import instructions as rv32i
 
         Cause = make_Cause(XLEN)
-        csr_addr = io.inst[20:32]
-        rs1_addr = io.inst[15:20]
+        CSR_CMD = make_CSR_CMD()
+        csr_addr = io.insn[20:32]
+        rs1_addr = io.insn[15:20]
 
         # read block
         lookup = Bits(XLEN)(0)
@@ -56,18 +66,18 @@ class CSRGen(Module):
 
         # get next value
         priv_valid = Bits(1)(0) #TODO: csr_addr[8:10] <= PRV
-        priv_inst = io.cmd == CSR.P
+        priv_inst = io.cmd == CSR_CMD.P
         is_E_call = priv_inst & ~csr_addr[0] & ~csr_addr[8]
         is_E_break = priv_inst & csr_addr[0] & ~csr_addr[8]
         is_E_ret = priv_inst & ~csr_addr[0] & csr_addr[8]
         csr_valid = Or(*[csr_addr == reg.addr for reg in CSR.regs])
         csr_RO = ((csr_addr[10] & csr_addr[11]) | (csr_addr == CSR.mtvec.addr) | (csr_addr == CSR.mtdeleg.addr))
-        wen = (io.cmd == CSR.W) | io.cmd[1] & Or(*[rs1_addr[i] for i in range(len(rs1_addr))])
+        wen = (io.cmd == CSR_CMD.W) | io.cmd[1] & Or(*[rs1_addr[i] for i in range(len(rs1_addr))])
         wen.name = "wen"
         wdata = Bits(XLEN)(0)
-        wdata = Mux(io.cmd == CSR.C, wdata, lookup & ~io.In)
-        wdata = Mux(io.cmd == CSR.S, wdata, lookup | io.In)
-        wdata = Mux(io.cmd == CSR.W, wdata, io.In)
+        wdata = Mux(io.cmd == CSR_CMD.C, wdata, lookup & ~io.In)
+        wdata = Mux(io.cmd == CSR_CMD.S, wdata, lookup | io.In)
+        wdata = Mux(io.cmd == CSR_CMD.W, wdata, io.In)
         wdata.name = "wdata"
 
         iaddr_invalid = io.pc_check & io.addr[1]
@@ -90,7 +100,7 @@ class CSRGen(Module):
         io.evec = Bits(XLEN)(0)
         io.epc = CSR.mepc.value
 
-        is_inst_ret = ((io.inst != rv32i.NOP) & (~expt | is_E_call | is_E_break) & ~io.stall)
+        is_inst_ret = ((io.insn != rv32i.NOP) & (~expt | is_E_call | is_E_break) & ~io.stall)
         is_inst_ret.name="is_inst_ret"
 
         is_inst_reth = is_inst_ret & And(*[CSR.instret.value.as_bits()[i] for i in range(len(CSR.instret.value))])

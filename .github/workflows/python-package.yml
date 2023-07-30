@@ -45,7 +45,9 @@ jobs:
       run: |
         mkdir build
         python pycde_example/*.py
-        python pycde_example/*/*.py
+        python -m pycde_example.mini_riscv.datapath
+        python -m pycde_example.mini_riscv.control
+        python -m pycde_example.mini_riscv.cache
 
     - name: Test with tox
       run: tox

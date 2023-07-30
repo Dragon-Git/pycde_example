@@ -15,8 +15,8 @@ class Immgen(Module):
     def build(io):
 
         lookup = ArraySignal.create([
-            SInt(XLEN)(-2),
-            io.insn[12:].as_sint().as_sint(XLEN), 
+            (io.insn[20:].as_sint().as_sint(XLEN).as_bits() & Bits(XLEN)(-2)).as_sint(),
+            io.insn[20:].as_sint().as_sint(XLEN), 
             comb.ConcatOp(io.insn[25:], io.insn[7:12]).as_sint().as_sint(XLEN),
             comb.ConcatOp(io.insn[12:], Bits(12)(0)).as_sint().as_sint(XLEN),
             comb.ConcatOp(io.insn[31], io.insn[12:20], io.insn[20], io.insn[25:31],
@@ -24,7 +24,7 @@ class Immgen(Module):
             comb.ConcatOp(io.insn[31], io.insn[7], io.insn[25:31], io.insn[8:12]
                           ).as_sint().as_sint(XLEN),
             io.insn[15:20].as_sint().as_sint(XLEN),
-            SInt(XLEN)(-2),
+            (io.insn[20:].as_sint().as_sint(XLEN).as_bits() & Bits(XLEN)(-2)).as_sint(),
         ])
         io.out = lookup[io.sel]
 

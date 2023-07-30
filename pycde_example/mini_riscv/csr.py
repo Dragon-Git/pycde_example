@@ -3,7 +3,9 @@ from pycde.types import Bits
 from pycde.constructs import Reg
 from pycde.signals import BitsSignal
 
-from const import Const
+from .const import Const
+
+XLEN = 32
 @dataclass()
 class CSR_REG:
     name:str
@@ -20,15 +22,7 @@ class CSR_REG:
     def __hash__(self):
         return(hash(self.name))
 
-XLEN = 32
-
 class CSR:
-    N = Bits(3)(0)
-    W = Bits(3)(1)
-    S = Bits(3)(2)
-    C = Bits(3)(3)
-    P = Bits(3)(4)
-
     # Supports machine & user modes
     PRV_U = Bits(2)(0x0)
     PRV_M = Bits(2)(0x3)
