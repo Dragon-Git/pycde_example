@@ -1,7 +1,6 @@
 import pycde
-from pycde import (Output, Module, generator, System)
+from pycde import (Output, Clock, Reset, Module, generator, System)
 from pycde.types import Bits, SInt, UInt  # noqa: F401
-from pycde.common import Clock, Reset
 from pycde.constructs import ControlReg, NamedWire, Reg, Wire, Mux  # noqa: F401
 from pycde.behavioral import If, EndIf
 

@@ -1,6 +1,4 @@
-from pycde import (System, Module, Input, Output, generator, types)  # noqa: F401
-from pycde.common import Clock, Reset
-from pycde.dialects import comb, hw  # noqa: F401
+from pycde import (System, Module, Clock, Reset, Input, Output, generator, types)  # noqa: F401
 from pycde.types import Bits, SInt, UInt  # noqa: F401
 from pycde.constructs import ControlReg, NamedWire, Reg, Wire, Mux  # noqa: F401
 

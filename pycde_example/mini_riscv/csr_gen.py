@@ -1,8 +1,7 @@
-from pycde import (System, Module, Input, Output, generator, types, dim)  # noqa: F401
-from pycde.common import Clock, Reset
+from pycde import (System, Module,Clock, Reset, Input, Output, generator, types, dim)  # noqa: F401
 from pycde.types import Bits
 from pycde.constructs import Mux
-from pycde.signals import BitsSignal, Or, And
+from pycde.signals import BitsSignal, Or
 
 XLEN = 32
 
@@ -73,7 +72,7 @@ class CSRGen(Module):
         is_E_ret = priv_inst & ~csr_addr[0] & csr_addr[8]
         csr_valid = Or(*[csr_addr == reg.addr for reg in CSR.regs])
         csr_RO = ((csr_addr[10] & csr_addr[11]) | (csr_addr == CSR.mtvec.addr) | (csr_addr == CSR.mtdeleg.addr))
-        wen = (io.cmd == CSR_CMD.W) | io.cmd[1] & Or(*[rs1_addr[i] for i in range(len(rs1_addr))])
+        wen = (io.cmd == CSR_CMD.W) | io.cmd[1] & rs1_addr.or_reduce()
         wen.name = "wen"
         wdata = Bits(XLEN)(0)
         wdata = Mux(io.cmd == CSR_CMD.C, wdata, lookup & ~io.In)
@@ -104,7 +103,7 @@ class CSRGen(Module):
         is_inst_ret = ((io.insn != rv32i.NOP) & (~expt | is_E_call | is_E_break) & ~io.stall)
         is_inst_ret.name="is_inst_ret"
 
-        is_inst_reth = is_inst_ret & And(*[CSR.instret.value.as_bits()[i] for i in range(len(CSR.instret.value))])
+        is_inst_reth = is_inst_ret & CSR.instret.value.as_bits().and_reduce()
         is_inst_reth.name="is_inst_reth"
 
         is_mbadaddr = (iaddr_invalid | laddr_invalid | saddr_invalid)
