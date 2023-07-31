@@ -1,6 +1,6 @@
 from pycde import (System, Module, Input, Output, generator, types, dim)  # noqa: F401
 from pycde.common import Clock, Reset
-from pycde.types import Bits  # noqa: F401
+from pycde.types import Bits
 from pycde.constructs import Mux
 from pycde.signals import BitsSignal, Or, And
 
@@ -48,7 +48,8 @@ class CSRGen(Module):
     @generator
     def build(io):
         from .csr import CSR
-        from . import instructions as rv32i
+        from .instructions import RV32I
+        rv32i = RV32I()
 
         Cause = make_Cause(XLEN)
         CSR_CMD = make_CSR_CMD()

@@ -69,18 +69,18 @@ class Datapath(Module):
         alu_io_A = Mux(io.ctrl.A_sel == Bits(1)(1), fe_pc.as_sint(), rs1.as_sint())
         alu_io_B = Mux(io.ctrl.B_sel == Bits(1)(1), immgen.out, rs2.as_sint())
 
-        temp = ALU(A=alu_io_A, B=alu_io_B, alu_op=io.ctrl.alu_op)
+        alu = ALU(A=alu_io_A, B=alu_io_B, alu_op=io.ctrl.alu_op)  # noqa: F841
         # io.out = temp.out
         # io.sum = temp.sum
 
         # Branch condition calc
-        bru = BRU(rs1=rs1.as_sint(), rs2=rs2.as_sint(), br_type=io.ctrl.br_type)
+        bru = BRU(rs1=rs1.as_sint(), rs2=rs2.as_sint(), br_type=io.ctrl.br_type)  # noqa: F841
         # io.taken = bru.taken
 
         # Pipelining 2
         csr_in.assign(Mux(io.ctrl.imm_sel == Bits(3)(6), rs1, immgen.out.as_bits()))
         # CSR access
-        csr = CSRGen(
+        csr = CSRGen(  # noqa: F841
             clk      = io.clk,
             rst      = io.rst,
             stall    = stall,

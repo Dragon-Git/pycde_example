@@ -105,7 +105,8 @@ class Control(Module):
         default = BitsSignal.concat(default_list[::-1])
 
         from .bit_pat import dict_lookup
-        from . import instructions as rv32i
+        from .instructions import RV32I
+        rv32i = RV32I()
 
         inst_map = {
             rv32i.LUI: (PC_4, A_PC, B_IMM, IMM_U, ALU_COPY_B, BR_XXX, N, ST_XXX, LD_XXX, WB_ALU, Y, CSR_CMD.N, N),
