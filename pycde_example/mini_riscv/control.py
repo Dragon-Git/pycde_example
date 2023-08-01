@@ -2,7 +2,10 @@ from pycde import System, Module, Input, Output, generator
 from pycde.types import Bits, StructType
 from pycde.signals import BitsSignal
 
-XLEN = 32
+from .bit_pat import dict_lookup
+from .instructions import RV32I
+from .csr import CSR_CMD_
+from .const import XLEN
 
 ctrl_sig = StructType({
     "pc_sel": Bits(2),
@@ -99,14 +102,10 @@ class Control(Module):
         WB_PC4 = Bits(2)(2)
         WB_CSR = Bits(2)(3)
 
-        from .csr_gen import make_CSR_CMD
-        CSR_CMD = make_CSR_CMD()
+        rv32i = RV32I()
+        CSR_CMD = CSR_CMD_()
         default_list = [PC_4, A_XXX, B_XXX, IMM_X, ALU_XXX, BR_XXX, N, ST_XXX, LD_XXX, WB_ALU, N, CSR_CMD.N, Y]
         default = BitsSignal.concat(default_list[::-1])
-
-        from .bit_pat import dict_lookup
-        from .instructions import RV32I
-        rv32i = RV32I()
 
         inst_map = {
             rv32i.LUI: (PC_4, A_PC, B_IMM, IMM_U, ALU_COPY_B, BR_XXX, N, ST_XXX, LD_XXX, WB_ALU, Y, CSR_CMD.N, N),
