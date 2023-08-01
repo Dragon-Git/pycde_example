@@ -99,7 +99,7 @@ class CSRGen(Module):
         saddr_invalid = Mux(io.st_type == Bits(2)(1), saddr_invalid, io.addr[0] | io.addr[1])
         saddr_invalid.name = "saddr_invalid"
         expt = (io.illegal | iaddr_invalid | laddr_invalid | saddr_invalid | (io.cmd[0] | io.cmd[1])
-                & (~csr_valid | ~priv_valid) | wen & csr_RO | (priv_inst & ~priv_valid) | is_E_call | is_E_break
+                & (~csr_valid | ~priv_valid) | wen & csr_RO | (priv_inst & ~priv_valid) | is_E_call | is_E_break)
         io.expt = expt
         io.evec = Bits(XLEN)(0)
         io.epc = CSR.mepc.value
