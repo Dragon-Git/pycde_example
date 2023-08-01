@@ -5,7 +5,7 @@ from pycde.constructs import NamedWire
 from .control import Control
 from .datapath import Datapath
 
-XLEN = 32
+from .const import XLEN
 
 class Core(Module):
     clk = Clock()

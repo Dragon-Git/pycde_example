@@ -2,7 +2,7 @@
 from pycde import (Clock, Reset, InputChannel, OutputChannel, Module, System, generator, esi)
 from pycde.types import Bits, SInt, UInt  # noqa: F401
 
-XLEN = 32
+from .const import XLEN
 DEPTH_1 = 31
 RamI32x32 = esi.DeclareRandomAccessMemory(Bits(XLEN), DEPTH_1 +1, "RamI32x32")
 WriteType = RamI32x32.write.to_server_type

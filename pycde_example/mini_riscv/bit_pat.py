@@ -72,4 +72,3 @@ def dict_lookup(dict_, select, default):
         output = Mux(key == select, output, value)
     output.name = "dict_lookup"
     return output
-

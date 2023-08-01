@@ -4,7 +4,7 @@ from pycde.types import Bits, SInt, UInt  # noqa: F401
 from pycde.constructs import Mux  # noqa: F401
 from pycde.signals import ArraySignal
 
-XLEN = 32
+from .const import XLEN
 
 class Immgen(Module):
     insn = Input(Bits(XLEN))

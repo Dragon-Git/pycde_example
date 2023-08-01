@@ -3,9 +3,16 @@ from pycde.types import Bits
 from pycde.constructs import Reg
 from pycde.signals import BitsSignal
 
-from .const import Const
+from .const import PC_const, XLEN
 
-XLEN = 32
+
+class CSR_CMD_:
+    def __init__(self) -> None:
+        self.N = Bits(3)(0)
+        self.W = Bits(3)(1)
+        self.S = Bits(3)(2)
+        self.C = Bits(3)(3)
+        self.P = Bits(3)(4)
 
 
 @dataclass()
@@ -25,7 +32,7 @@ class CSR_REG:
         return hash(self.name)
 
 
-class CSR:
+class CSR_:
     def __init__(self):
         # Supports machine & user modes
         self.PRV_U = Bits(2)(0x0)
@@ -66,7 +73,7 @@ class CSR:
 
         # Machine Trap Setup
         self.mstatus = CSR_REG("mstatus", Bits(12)(0x300), "RW", Reg(Bits(XLEN)))
-        self.mtvec = CSR_REG("mtvec", Bits(12)(0x301), "RO", Const().PC_EVEC)
+        self.mtvec = CSR_REG("mtvec", Bits(12)(0x301), "RO", PC_const().PC_EVEC)
         self.mtdeleg = CSR_REG("mtdeleg", Bits(12)(0x302), "RO", Bits(XLEN)(0))
         self.mie = CSR_REG("mie", Bits(12)(0x304), "RW", Reg(Bits(XLEN)))
         self.mtimecmp = CSR_REG("mtimecmp", Bits(12)(0x321), "RW", Reg(Bits(XLEN)))

@@ -5,7 +5,7 @@ from pycde.constructs import Wire
 from pycde import esi
 from pycde import fsm
 
-XLEN = 32
+from .const import XLEN  # noqa: F401
 
 RamI32x32 = esi.DeclareRandomAccessMemory(types.i32, 32, "RamI32x32")
 WriteType = RamI32x32.write.to_server_type

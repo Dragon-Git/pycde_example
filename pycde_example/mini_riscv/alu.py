@@ -4,14 +4,14 @@ from pycde.types import Bits, SInt, UInt  # noqa: F401
 from pycde.constructs import Mux
 from pycde.signals import ArraySignal
 
-width = 32
+from .const import XLEN
 
 class ALU(Module):
-    A = Input(SInt(width))
-    B = Input(SInt(width))
+    A = Input(SInt(XLEN))
+    B = Input(SInt(XLEN))
     alu_op = Input(Bits(4))
-    out = Output(SInt(width))
-    sum = Output(SInt(width))
+    out = Output(SInt(XLEN))
+    sum = Output(SInt(XLEN))
   
     @generator
     def build(io):
@@ -19,16 +19,16 @@ class ALU(Module):
         shamt = io.B.as_bits()
 
         lookup = ArraySignal.create([
-            (io.A + io.B).as_sint(width),
-            (io.A - io.B).as_sint(width),
-            (io.A.as_bits() & io.B.as_bits()).as_sint(width),
-            (io.A.as_bits() | io.B.as_bits()).as_sint(width),
-            (io.A.as_bits() ^ io.B.as_bits()).as_sint(width),
-            (io.A < io.B).as_sint(width),
-            comb.ShlOp(io.A.as_bits(), shamt).as_sint(width),
-            (io.A.as_uint() < io.B.as_uint()).as_sint(width),
-            comb.ShrUOp(io.A.as_bits(), shamt).as_sint(width),
-            comb.ShrSOp(io.A.as_bits(), shamt).as_sint(width),
+            (io.A + io.B).as_sint(XLEN),
+            (io.A - io.B).as_sint(XLEN),
+            (io.A.as_bits() & io.B.as_bits()).as_sint(XLEN),
+            (io.A.as_bits() | io.B.as_bits()).as_sint(XLEN),
+            (io.A.as_bits() ^ io.B.as_bits()).as_sint(XLEN),
+            (io.A < io.B).as_sint(XLEN),
+            comb.ShlOp(io.A.as_bits(), shamt).as_sint(XLEN),
+            (io.A.as_uint() < io.B.as_uint()).as_sint(XLEN),
+            comb.ShrUOp(io.A.as_bits(), shamt).as_sint(XLEN),
+            comb.ShrSOp(io.A.as_bits(), shamt).as_sint(XLEN),
             io.A,
             io.B,
             io.B,
@@ -37,7 +37,7 @@ class ALU(Module):
             io.B,
         ][::-1])
         io.out = lookup[io.alu_op]
-        io.sum = Mux(io.alu_op[0], io.A + io.B, io.A - io.B).as_sint(width)
+        io.sum = Mux(io.alu_op[0], io.A + io.B, io.A - io.B).as_sint(XLEN)
 
 if __name__ == '__main__':
     mod = System([ALU],name="ip_riscv_lib", output_directory="build/ip_riscv_lib")

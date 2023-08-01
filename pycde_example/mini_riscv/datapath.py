@@ -8,7 +8,7 @@ from .control import ctrl_sig
 from .csr_gen import CSRGen
 from .immgen import Immgen
 from .regfile import Regfile, WriteType
-XLEN = 32
+from .const import XLEN
 
 class Datapath(Module):
     clk = Clock()

@@ -3,30 +3,19 @@ from pycde.types import Bits
 from pycde.constructs import Mux
 from pycde.signals import BitsSignal, Or
 
-XLEN = 32
+from .instructions import RV32I
+from .csr import CSR_, CSR_CMD_
+from .const import XLEN
 
 
-def make_CSR_CMD():
-    class CSR_CMD:
-        N = Bits(3)(0)
-        W = Bits(3)(1)
-        S = Bits(3)(2)
-        C = Bits(3)(3)
-        P = Bits(3)(4)
-
-    return CSR_CMD
-
-
-def make_Cause(XLEN):
-    class Cause:
-        InstAddrMisaligned = Bits(XLEN)(0x0)
-        IllegalInst = Bits(XLEN)(0x2)
-        Breakpoint = Bits(XLEN)(0x3)
-        LoadAddrMisaligned = Bits(XLEN)(0x4)
-        StoreAddrMisaligned = Bits(XLEN)(0x6)
-        Ecall = Bits(XLEN)(0x8)
-
-    return Cause
+class Cause:
+    def __init__(self) -> None:
+        self.InstAddrMisaligned = Bits(XLEN)(0x0)
+        self.IllegalInst = Bits(XLEN)(0x2)
+        self.Breakpoint = Bits(XLEN)(0x3)
+        self.LoadAddrMisaligned = Bits(XLEN)(0x4)
+        self.StoreAddrMisaligned = Bits(XLEN)(0x6)
+        self.Ecall = Bits(XLEN)(0x8)
 
 
 class CSRGen(Module):
@@ -50,14 +39,12 @@ class CSRGen(Module):
 
     @generator
     def build(io):
-        from .csr import CSR
-        from .instructions import RV32I
 
-        CSR = CSR()
+        CSR = CSR_()
+        CSR_CMD = CSR_CMD_()
         rv32i = RV32I()
+        cause = Cause()
 
-        Cause = make_Cause(XLEN)
-        CSR_CMD = make_CSR_CMD()
         csr_addr = io.insn[20:32]
         rs1_addr = io.insn[15:20]
 
@@ -122,11 +109,11 @@ class CSRGen(Module):
         CSR.instreth.next = Mux(is_inst_reth, CSR.instreth.value, (CSR.instreth.value.as_uint(XLEN) + 1).as_bits(XLEN))
 
         CSR.mepc.next   = Mux(~io.stall & expt, CSR.mepc.next, io.pc & Bits(XLEN)((1<<XLEN)-4))
-        CSR.mcause.next = Mux(~io.stall & expt & iaddr_invalid, Cause.InstAddrMisaligned,
-                Mux(~io.stall & expt & laddr_invalid, Cause.LoadAddrMisaligned,
-                Mux(~io.stall & expt & saddr_invalid, Cause.StoreAddrMisaligned,
-                Mux(~io.stall & expt & is_E_call,     Cause.Ecall, # need add PRV
-                Mux(~io.stall & expt & is_E_break,    Cause.Breakpoint, Cause.IllegalInst)))))
+        CSR.mcause.next = Mux(~io.stall & expt & iaddr_invalid, cause.InstAddrMisaligned,
+                Mux(~io.stall & expt & laddr_invalid, cause.LoadAddrMisaligned,
+                Mux(~io.stall & expt & saddr_invalid, cause.StoreAddrMisaligned,
+                Mux(~io.stall & expt & is_E_call,     cause.Ecall, # need add PRV
+                Mux(~io.stall & expt & is_E_break,    cause.Breakpoint, cause.IllegalInst)))))
         CSR.mbadaddr.next   = Mux(~io.stall & expt & is_mbadaddr, CSR.mbadaddr.next, io.addr)
         CSR.mstatus.next   = Mux(~io.stall & expt, CSR.mstatus.next, BitsSignal.concat([CSR.mstatus.next.as_bits()[6:], CSR.mstatus.next.as_bits()[:3], CSR.PRV_M, Bits(1)(0)]))  # noqa: E501
         CSR.mstatus.next   = Mux(~io.stall & is_E_ret, CSR.mstatus.next, BitsSignal.concat([CSR.mstatus.next.as_bits()[6:], CSR.PRV_U, Bits(1)(1), CSR.mstatus.next.as_bits()[3:6]]))  # noqa: E501
@@ -143,7 +130,6 @@ class CSRGen(Module):
         # assign block
         for reg, next in reg_assign_dict.items():
             reg.value.assign(next)
-
 
 
 if __name__ == '__main__':
