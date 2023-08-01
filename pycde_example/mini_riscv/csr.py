@@ -66,7 +66,7 @@ class CSR:
 
         # Machine Trap Setup
         self.mstatus = CSR_REG("mstatus", Bits(12)(0x300), "RW", Reg(Bits(XLEN)))
-        self.mtvec = CSR_REG("mtvec", Bits(12)(0x301), "RO", Const.PC_EVEC)
+        self.mtvec = CSR_REG("mtvec", Bits(12)(0x301), "RO", Const().PC_EVEC)
         self.mtdeleg = CSR_REG("mtdeleg", Bits(12)(0x302), "RO", Bits(XLEN)(0))
         self.mie = CSR_REG("mie", Bits(12)(0x304), "RW", Reg(Bits(XLEN)))
         self.mtimecmp = CSR_REG("mtimecmp", Bits(12)(0x321), "RW", Reg(Bits(XLEN)))
