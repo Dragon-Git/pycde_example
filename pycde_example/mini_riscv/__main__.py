@@ -1,6 +1,6 @@
 from pycde import System
 
-from .core import Core
+from .tile import Tile
 
-mod = System([Core],name="ip_riscv_lib", output_directory="build/ip_riscv_lib")
+mod = System([Tile],name="ip_riscv_lib", output_directory="build/ip_riscv_lib")
 mod.compile()

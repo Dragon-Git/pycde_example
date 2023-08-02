@@ -1,28 +1,28 @@
 
-from pycde import (Clock, Input, Module, System, generator)
-from pycde.types import Bits, SInt, UInt, types  # noqa: F401
-from pycde.constructs import Wire
+from pycde import (Clock, Reset, Input, Module, System, generator)
+from pycde.types import Bits, SInt, UInt, types, StructType  # noqa: F401
+from pycde.constructs import Wire  # noqa: F401
 from pycde import esi
 from pycde import fsm
 
-from .const import XLEN  # noqa: F401
+from .const import XLEN
 
 RamI32x32 = esi.DeclareRandomAccessMemory(types.i32, 32, "RamI32x32")
 WriteType = RamI32x32.write.to_server_type
-
+ReqType = StructType({"addr": Bits(XLEN), "data": Bits(XLEN), "mask": Bits(XLEN//8)})
 class Cache_fsm(fsm.Machine):
-    cpu_req_vld = Input(types.i1)
-    cpu_req_data_mask = Input(types.i1)
-    cpu_mask_reduce_or = Input(types.i1) 
-    nasti_ar = Input(types.i1)
-    nasti_ar = Input(types.i1)
-    nasti_aw = Input(types.i1)
-    nasti_b = Input(types.i1)
-    read_wrap_out = Input(types.i1)
-    write_wrap_out = Input(types.i1)
-    hit = Input(types.i1)
-    is_alloc_reg = Input(types.i1)
-    cpu_abort = Input(types.i1)
+    cpu_req_vld = Input(Bits(1))
+    cpu_req_data_mask = Input(Bits(1))
+    cpu_mask_reduce_or = Input(Bits(1)) 
+    nasti_ar = Input(Bits(1))
+    nasti_ar = Input(Bits(1))
+    nasti_aw = Input(Bits(1))
+    nasti_b = Input(Bits(1))
+    read_wrap_out = Input(Bits(1))
+    write_wrap_out = Input(Bits(1))
+    hit = Input(Bits(1))
+    is_alloc_reg = Input(Bits(1))
+    cpu_abort = Input(Bits(1))
     # States
     IDEL = fsm.State(initial=True)
     (READ_CACHE, WRITE_CACHE, WRITE_BACK, WRITE_ACK, REFILL_RDY, REFILL) = fsm.States(6)  
@@ -48,22 +48,21 @@ class Cache_fsm(fsm.Machine):
         )
 
 @esi.ServiceDecl
-class Cache_io:
-    write = esi.FromServer(WriteType)
-    read = esi.ToFromServer(to_server_type=types.i32, to_client_type=types.i5)
+class CacheIO:
+    req = esi.FromServer(ReqType)
+    resp = esi.ToServer(Bits(XLEN))
 
 class Cache(Module):
     clk = Clock()
-    rst = Input(types.i1)
+    rst = Reset()
 
     @generator
     def construct(io):
-        RamI32x32.write(Cache_io.write("write"))
-        read_address = Wire(RamI32x32.read.to_server_type)
-        read_data = RamI32x32.read(read_address)
-        read_address.assign(Cache_io.read(read_data, "read"))
+        y = CacheIO.req("req")
+        pack, _ = y.unwrap(readyOrRden=1)
+        x, _ = types.channel(Bits(32)).wrap(pack.data.reg(), valueOrEmpty=1)
+        CacheIO.resp(x, "resp")
 
-        RamI32x32.instantiate_builtin("sv_mem", [], inputs=[io.clk, io.rst])
 
 if __name__ == '__main__':
     mod = System([Cache, Cache_fsm],name="ip_riscv_lib", output_directory="build/ip_riscv_lib")
