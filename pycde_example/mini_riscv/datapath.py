@@ -1,4 +1,4 @@
-from pycde import (System, Module, Clock, Reset, Input, Output, generator, types)  # noqa: F401
+from pycde import (System, Module, Clock, Reset, InputChannel, OutputChannel, Input, Output, generator, types)
 from pycde.types import Bits, SInt, UInt  # noqa: F401
 from pycde.constructs import ControlReg, NamedWire, Reg, Wire, Mux  # noqa: F401
 
@@ -9,15 +9,17 @@ from .csr_gen import CSRGen
 from .immgen import Immgen
 from .regfile import Regfile, WriteType
 from .const import XLEN
+from .cache import ReqType
 
 class Datapath(Module):
     clk = Clock()
     rst = Reset()
-    dcache = Input(Bits(1))
-    icache = Input(Bits(1))
     ctrl = Input(ctrl_sig)
-    pc = Input(Bits(XLEN))
     insn= Output(Bits(XLEN))
+    dreq = OutputChannel(ReqType)
+    dresp = InputChannel(Bits(XLEN))
+    ireq = OutputChannel(ReqType)
+    iresp = InputChannel(Bits(XLEN))
   
     @generator
     def build(io):
@@ -32,10 +34,13 @@ class Datapath(Module):
         ew_alu.assign(Bits(XLEN)(0)) # FIXME
         ctrl_rg = io.ctrl.reg()
         # Fetch
-        stall = ~io.icache | ~io.dcache #FIXME ~io.icache.resp.valid | ~io.dcache.resp.valid
+        data, dresp_valid = io.dresp.unwrap(readyOrRden=1)
+        data, iresp_valid = io.iresp.unwrap(readyOrRden=1)
+        stall = ~iresp_valid | ~dresp_valid
         insn = Bits(32)(0)
         # Pipelining 1
-        fe_pc.assign(Mux(stall, fe_pc, io.pc))
+        pc = Bits(32)(0xbad)
+        fe_pc.assign(Mux(stall, fe_pc, pc))
         fe_inst.assign(Mux(stall, fe_inst, insn))
         ############################### Execute ############################
         # Decode
@@ -92,6 +97,8 @@ class Datapath(Module):
             ld_type  = ctrl_rg.ld_type,
             st_type  = ctrl_rg.st_type,
         )
+        io.dreq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15}), 1)
+        io.ireq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15}), 1)
 
 
 if __name__ == '__main__':

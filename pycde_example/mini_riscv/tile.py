@@ -17,12 +17,12 @@ class Tile(Module):
 
         dreq = Wire(types.channel(ReqType))
         ireq = Wire(types.channel(ReqType))
-        dcache = Cache( "dcache",
+        dcache_out = Cache( "dcache",
              clk = io.clk, 
              rst = io.rst,
              req = dreq,
         )
-        icache = Cache( "icache",
+        icache_out = Cache( "icache",
              clk = io.clk, 
              rst = io.rst, 
              req = ireq,

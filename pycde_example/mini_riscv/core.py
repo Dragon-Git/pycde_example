@@ -1,4 +1,4 @@
-from pycde import (System, Module, Clock, Reset, InputChannel, OutputChannel, Input, Output, generator, types)  # noqa: F401
+from pycde import (System, Module, Clock, Reset, InputChannel, OutputChannel, Input, generator, types)  # noqa: F401
 from pycde.types import Bits
 from pycde.constructs import NamedWire
 
@@ -23,15 +23,12 @@ class Core(Module):
         dpath = Datapath(
             clk = io.clk, 
             rst = io.rst, 
-            dcache = Bits(1)(0), 
-            icache = Bits(1)(0), 
             ctrl = ctrl.ctrl, 
-            pc = Bits(XLEN)(0))
+            dresp = io.dresp, 
+            iresp = io.iresp)
         insn.assign(dpath.insn)
-        io.dreq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15})
-        io.ireq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15})
-        data, valid = io.dresp.unwrap(readyOrRden=1)
-        data, valid = io.iresp.unwrap(readyOrRden=1)
+        io.dreq = dpath.dreq
+        io.ireq = dpath.ireq
 
 
 if __name__ == '__main__':
