@@ -7,8 +7,9 @@ from .bru import BRU
 from .control import ctrl_sig
 from .csr_gen import CSRGen
 from .immgen import Immgen
+from .instructions import RV32I
 from .regfile import Regfile, WriteType
-from .const import XLEN
+from .const import XLEN, PC_const
 from .cache import ReqType
 
 class Datapath(Module):
@@ -34,10 +35,23 @@ class Datapath(Module):
         ew_alu.assign(Bits(XLEN)(0)) # FIXME
         ctrl_rg = io.ctrl.reg()
         # Fetch
-        data, dresp_valid = io.dresp.unwrap(readyOrRden=1)
-        data, iresp_valid = io.iresp.unwrap(readyOrRden=1)
+        alu_sum = Wire(Bits(XLEN))
+        bru_taken = Wire(Bits(1))
+        csr_expt = Wire(Bits(1))
+        dresp_data, dresp_valid = io.dresp.unwrap(readyOrRden=1)
+        iresp_data, iresp_valid = io.iresp.unwrap(readyOrRden=1)
+        started = Bits(1)(1)
         stall = ~iresp_valid | ~dresp_valid
-        insn = Bits(32)(0)
+        pc   = Reg(Bits(XLEN), rst=io.rst, rst_value=(PC_const().PC_START.as_uint() - 4).as_bits(XLEN))
+        # npc  = Mux(stall, pc, Mux(csr.expt, csr.evec,
+        #      Mux(io.ctrl.pc_sel == PC_EPC,  csr.epc,
+        #      Mux(io.ctrl.pc_sel == PC_ALU | bru.taken, alu_sum,
+        #      Mux(io.ctrl.pc_sel == PC_0, pc, pc + 4)))))
+        npc = 0
+        pc.assign(npc)
+        insn = Mux(started | io.ctrl.inst_kill | bru_taken | csr_expt, iresp_data, RV32I().NOP)
+        io.ireq, ready = types.channel(ReqType).wrap(ReqType({"addr": npc, "data": 0, "mask": 0}), ~stall)
+
         # Pipelining 1
         pc = Bits(32)(0xbad)
         fe_pc.assign(Mux(stall, fe_pc, pc))
@@ -72,18 +86,18 @@ class Datapath(Module):
         alu_io_A = Mux(io.ctrl.A_sel == Bits(1)(1), fe_pc.as_sint(), rs1.as_sint())
         alu_io_B = Mux(io.ctrl.B_sel == Bits(1)(1), immgen.out, rs2.as_sint())
 
-        alu = ALU(A=alu_io_A, B=alu_io_B, alu_op=io.ctrl.alu_op)  # noqa: F841
+        alu = ALU(A=alu_io_A, B=alu_io_B, alu_op=io.ctrl.alu_op)
         # io.out = temp.out
-        # io.sum = temp.sum
+        alu_sum.assign(alu.sum.as_bits())
 
         # Branch condition calc
-        bru = BRU(rs1=rs1.as_sint(), rs2=rs2.as_sint(), br_type=io.ctrl.br_type)  # noqa: F841
-        # io.taken = bru.taken
+        bru = BRU(rs1=rs1.as_sint(), rs2=rs2.as_sint(), br_type=io.ctrl.br_type)
+        bru_taken.assign(bru.taken)
 
         # Pipelining 2
         csr_in.assign(Mux(io.ctrl.imm_sel == Bits(3)(6), rs1, immgen.out.as_bits()))
         # CSR access
-        csr = CSRGen(  # noqa: F841
+        csr = CSRGen(
             clk      = io.clk,
             rst      = io.rst,
             stall    = stall,
@@ -97,8 +111,8 @@ class Datapath(Module):
             ld_type  = ctrl_rg.ld_type,
             st_type  = ctrl_rg.st_type,
         )
+        csr_expt.assign(csr.expt)
         io.dreq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15}), 1)
-        io.ireq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15}), 1)
 
 
 if __name__ == '__main__':
