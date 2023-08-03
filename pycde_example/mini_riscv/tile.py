@@ -1,8 +1,8 @@
 from pycde import (System, Module, Clock, Reset, Input, Output, generator, types)  # noqa: F401
 from pycde.types import Bits  # noqa: F401
-from pycde.constructs import NamedWire  # noqa: F401
+from pycde.constructs import Wire
 
-from .cache import Cache
+from .cache import Cache, ReqType
 from .core import Core
 from .const import XLEN  # noqa: F401
 
@@ -15,25 +15,28 @@ class Tile(Module):
     @generator
     def build(io):
 
+        dreq = Wire(types.channel(ReqType))
+        ireq = Wire(types.channel(ReqType))
         dcache = Cache( "dcache",
              clk = io.clk, 
              rst = io.rst,
+             req = dreq,
         )
-        print(dcache.inst, dir(dcache.inst))
         icache = Cache( "icache",
              clk = io.clk, 
              rst = io.rst, 
+             req = ireq,
         )
-        print(icache.inst, dir(icache.inst))
         core = Core(
             clk = io.clk, 
             rst = io.rst, 
-            # dcache = Bits(1)(0), 
-            # icache = Bits(1)(0), 
+            dresp = dcache_out.resp, 
+            iresp = icache_out.resp, 
             # ctrl = ctrl.ctrl, 
             # pc = Bits(XLEN)(0)
         )
-        print(core.inst, dir(core.inst))
+        dreq.assign(core.dreq)
+        ireq.assign(core.ireq)
 
 
 if __name__ == '__main__':

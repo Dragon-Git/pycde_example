@@ -1,5 +1,5 @@
 
-from pycde import (Clock, Reset, Input, Module, System, generator)
+from pycde import (Clock, Reset, InputChannel, OutputChannel, Input, Module, System, generator)
 from pycde.types import Bits, SInt, UInt, types, StructType  # noqa: F401
 from pycde.constructs import Wire  # noqa: F401
 from pycde import esi
@@ -47,21 +47,16 @@ class Cache_fsm(fsm.Machine):
         (IDEL, lambda io: io.read_wrap_out)
         )
 
-@esi.ServiceDecl
-class CacheIO:
-    req = esi.FromServer(ReqType)
-    resp = esi.ToServer(Bits(XLEN))
-
 class Cache(Module):
     clk = Clock()
     rst = Reset()
+    req = InputChannel(ReqType)
+    resp = OutputChannel(Bits(XLEN))
 
     @generator
     def construct(io):
-        y = CacheIO.req("req")
-        pack, _ = y.unwrap(readyOrRden=1)
-        x, _ = types.channel(Bits(32)).wrap(pack.data.reg(), valueOrEmpty=1)
-        CacheIO.resp(x, "resp")
+        pack, valid = io.req.unwrap(readyOrRden=1)
+        io.resp, ready = types.channel(Bits(32)).wrap(pack.data.reg(), valid)
 
 
 if __name__ == '__main__':

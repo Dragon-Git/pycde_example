@@ -1,17 +1,19 @@
-from pycde import (System, Module, Clock, Reset, Input, Output, generator, types)  # noqa: F401
+from pycde import (System, Module, Clock, Reset, InputChannel, OutputChannel, Input, Output, generator, types)  # noqa: F401
 from pycde.types import Bits
 from pycde.constructs import NamedWire
 
 from .control import Control
 from .datapath import Datapath
-
+from .cache import ReqType
 from .const import XLEN
 
 class Core(Module):
     clk = Clock()
     rst = Reset()
-    # dcache = Output()
-    # icache = Output()
+    dreq = OutputChannel(ReqType)
+    dresp = InputChannel(Bits(XLEN))
+    ireq = OutputChannel(ReqType)
+    iresp = InputChannel(Bits(XLEN))
 
     @generator
     def build(io):
@@ -26,8 +28,10 @@ class Core(Module):
             ctrl = ctrl.ctrl, 
             pc = Bits(XLEN)(0))
         insn.assign(dpath.insn)
-        # io.dcache = dpath.dcache
-        # io.icache = dpath.icache
+        io.dreq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15})
+        io.ireq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15})
+        data, valid = io.dresp.unwrap(readyOrRden=1)
+        data, valid = io.iresp.unwrap(readyOrRden=1)
 
 
 if __name__ == '__main__':
