@@ -19,13 +19,8 @@ class Core(Module):
     def build(io):
 
         insn = NamedWire(Bits(XLEN), "insn")
-        ctrl = Control(insn = insn)
-        dpath = Datapath(
-            clk = io.clk, 
-            rst = io.rst, 
-            ctrl = ctrl.ctrl, 
-            dresp = io.dresp, 
-            iresp = io.iresp)
+        ctrl = Control(insn=insn)
+        dpath = Datapath(clk=io.clk, rst=io.rst, ctrl=ctrl.ctrl, dresp=io.dresp, iresp=io.iresp)
         insn.assign(dpath.insn)
         io.dreq = dpath.dreq
         io.ireq = dpath.ireq

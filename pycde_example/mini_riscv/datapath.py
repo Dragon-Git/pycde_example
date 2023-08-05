@@ -50,7 +50,7 @@ class Datapath(Module):
         npc = 0
         pc.assign(npc)
         insn = Mux(started | io.ctrl.inst_kill | bru_taken | csr_expt, iresp_data, RV32I().NOP)
-        io.ireq, ready = types.channel(ReqType).wrap(ReqType({"addr": npc, "data": 0, "mask": 0}), ~stall)
+        io.ireq, ready = types.channel(ReqType).wrap(ReqType({"addr": npc, "data": 0, "mask": 0, "abort": 0}), ~stall)
 
         # Pipelining 1
         pc = Bits(32)(0xbad)
@@ -61,27 +61,25 @@ class Datapath(Module):
         io.insn  = fe_inst
 
         # regFile read
-        (write_data, _) = WriteType.wrap({'data': Bits(32)(0xABCDEF), 'address': fe_inst[7:12]}, valueOrEmpty = 1)
+        write_pkt = Wire(WriteType)
         (rs1_addr, _) = types.channel(Bits(5)).wrap(fe_inst[15:20], valueOrEmpty=1)
         (rs2_addr, _) = types.channel(Bits(5)).wrap(fe_inst[20:25], valueOrEmpty=1)
-        reg_file = Regfile(clk=io.clk, rst=io.rst, rs1_read_addr=rs1_addr, rs2_read_addr=rs2_addr, rd_write=write_data)
+        reg_file = Regfile(clk=io.clk, rst=io.rst, rs1_read_addr=rs1_addr, rs2_read_addr=rs2_addr, rd_write=write_pkt)
         rdata1, _ = reg_file.rs1_read_data.unwrap(readyOrRden=1)
         rdata2, _ = reg_file.rs2_read_data.unwrap(readyOrRden=1)
 
-        # // gen immdeates
+        # gen immdeates
         immgen = Immgen(insn = fe_inst, sel = io.ctrl.imm_sel)
 
         # bypass
-        wb_en = Bits(1)(0)
-        wb_sel = Bits(1)(0)
-        WB_ALU = Bits(1)(0)
+        WB_ALU = Bits(2)(0)
         ew_alu = Bits(32)(0)
         ew_inst.assign(fe_inst)
         wb_rd_addr = ew_inst[7:12]
-        rs1hazard = wb_en & fe_inst[15:20].or_reduce() & (fe_inst[15:20] == wb_rd_addr)
-        rs2hazard = wb_en & fe_inst[20:25].or_reduce() & (fe_inst[20:25] == wb_rd_addr)
-        rs1 = Mux(wb_sel == WB_ALU & rs1hazard, ew_alu, rdata1) 
-        rs2 = Mux(wb_sel == WB_ALU & rs2hazard, ew_alu, rdata2)
+        rs1hazard = ctrl_rg.wb_en & fe_inst[15:20].or_reduce() & (fe_inst[15:20] == wb_rd_addr)
+        rs2hazard = ctrl_rg.wb_en & fe_inst[20:25].or_reduce() & (fe_inst[20:25] == wb_rd_addr)
+        rs1 = Mux((ctrl_rg.wb_sel == WB_ALU) & rs1hazard, ew_alu, rdata1) 
+        rs2 = Mux((ctrl_rg.wb_sel == WB_ALU) & rs2hazard, ew_alu, rdata2)
         # ALU operations
         alu_io_A = Mux(io.ctrl.A_sel == Bits(1)(1), fe_pc.as_sint(), rs1.as_sint())
         alu_io_B = Mux(io.ctrl.B_sel == Bits(1)(1), immgen.out, rs2.as_sint())
@@ -96,6 +94,17 @@ class Datapath(Module):
 
         # Pipelining 2
         csr_in.assign(Mux(io.ctrl.imm_sel == Bits(3)(6), rs1, immgen.out.as_bits()))
+        # Load
+        # loffset = (ew_alu(1) << 4.U).asUInt | (ew_alu(0) << 3.U).asUInt
+        # lshift  = dresp_data >> loffset
+        lshift  = dresp_data
+        load    = Mux(ctrl_rg.ld_type, 
+            dresp_data, dresp_data, 
+            lshift[0:16].as_sint().as_sint(XLEN).as_bits(),
+            lshift[0:8].as_sint().as_sint(XLEN).as_bits(),
+            lshift[0:16].as_uint().as_uint(XLEN).as_bits(),
+            lshift[0:8].as_uint().as_uint(XLEN).as_bits(),
+            dresp_data, dresp_data)
         # CSR access
         csr = CSRGen(
             clk      = io.clk,
@@ -112,7 +121,12 @@ class Datapath(Module):
             st_type  = ctrl_rg.st_type,
         )
         csr_expt.assign(csr.expt)
-        io.dreq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15}), 1)
+        # Regfile Write
+        reg_wdata = Mux(ctrl_rg.wb_sel, ew_alu, load, (ew_pc.as_uint() + 4).as_bits(XLEN), csr.Out) 
+
+        (write_data, _) = WriteType.wrap({'data': reg_wdata, 'address': fe_inst[7:12]}, ctrl_rg.wb_en & ~stall & ~csr.expt)
+        write_pkt.assign(write_data)
+        io.dreq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15, "abort" : csr.expt}), 1)
 
 
 if __name__ == '__main__':
