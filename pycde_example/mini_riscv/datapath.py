@@ -124,8 +124,8 @@ class Datapath(Module):
         # Regfile Write
         reg_wdata = Mux(ctrl_rg.wb_sel, ew_alu, load, (ew_pc.as_uint() + 4).as_bits(XLEN), csr.Out) 
 
-        (write_data, _) = WriteType.wrap({'data': reg_wdata, 'address': fe_inst[7:12]}, ctrl_rg.wb_en & ~stall & ~csr.expt)
-        write_pkt.assign(write_data)
+        (wdata, _) = WriteType.wrap({'data': reg_wdata, 'address': fe_inst[7:12]}, ctrl_rg.wb_en & ~stall & ~csr.expt)
+        write_pkt.assign(wdata)
         io.dreq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15, "abort" : csr.expt}), 1)
 
 

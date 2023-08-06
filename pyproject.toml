@@ -10,7 +10,7 @@ requires-python = ">=3.8"
 dependencies = [
     "PyYAML",
     "cocotb",
-    "pycde>=0.2.1.dev1069, <0.3.0",
+    "pycde>=0.2.1.dev1139, <0.3.0",
 ]
 
 [project.optional-dependencies]

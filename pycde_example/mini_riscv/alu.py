@@ -2,7 +2,6 @@ from pycde import (System, Module, Clock, Input, Output, generator, types)  # no
 from pycde.dialects import comb, hw  # noqa: F401
 from pycde.types import Bits, SInt, UInt  # noqa: F401
 from pycde.constructs import Mux
-from pycde.signals import ArraySignal
 
 from .const import XLEN
 
@@ -18,7 +17,7 @@ class ALU(Module):
 
         shamt = io.B.as_bits()
 
-        lookup = ArraySignal.create([
+        io.out = Mux(io.alu_op, *[
             (io.A + io.B).as_sint(XLEN),
             (io.A - io.B).as_sint(XLEN),
             (io.A.as_bits() & io.B.as_bits()).as_sint(XLEN),
@@ -35,8 +34,7 @@ class ALU(Module):
             io.B,
             io.B,
             io.B,
-        ][::-1])
-        io.out = lookup[io.alu_op]
+        ])
         io.sum = Mux(io.alu_op[0], io.A + io.B, io.A - io.B).as_sint(XLEN)
 
 if __name__ == '__main__':
