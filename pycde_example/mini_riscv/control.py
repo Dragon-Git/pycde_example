@@ -8,14 +8,17 @@ from .csr import CSR_CMD_
 from .const import XLEN
 
 ctrl_sig = StructType({
+    # Control signals for Fetch
     "pc_sel": Bits(2),
     "inst_kill": Bits(1),
+    # Control signals for Execute
     "A_sel": Bits(1),
     "B_sel": Bits(1),
     "imm_sel": Bits(3),
     "alu_op": Bits(4),
     "br_type": Bits(3),
     "st_type": Bits(2),
+    # Control signals for Write Back
     "ld_type": Bits(3),
     "wb_sel": Bits(2),
     "wb_en": Bits(1),
@@ -31,76 +34,32 @@ class Control(Module):
     @generator
     def build(io):
 
-        ALU_ADD = Bits(4)(0)
-        ALU_SUB = Bits(4)(1)
-        ALU_AND = Bits(4)(2)
-        ALU_OR = Bits(4)(3)
-        ALU_XOR = Bits(4)(4)
-        ALU_SLT = Bits(4)(5)
-        ALU_SLL = Bits(4)(6)
-        ALU_SLTU = Bits(4)(7)
-        ALU_SRL = Bits(4)(8)
-        ALU_SRA = Bits(4)(9)
-        ALU_COPY_A = Bits(4)(10)
-        ALU_COPY_B = Bits(4)(11)
+        (ALU_ADD, ALU_SUB, ALU_AND, ALU_OR, ALU_XOR, ALU_SLT, ALU_SLL, ALU_SLTU,
+            ALU_SRL, ALU_SRA, ALU_COPY_A, ALU_COPY_B) = map(Bits(4), range(12))  
         ALU_XXX = Bits(4)(15)
 
-        Y = Bits(1)(1)
-        N = Bits(1)(0)
+        Y, N = map(Bits(1), range(2))  
 
         # pc_sel
-        PC_4 = Bits(2)(0)
-        PC_ALU = Bits(2)(1)
-        PC_0 = Bits(2)(2)
-        PC_EPC = Bits(2)(3)
+        PC_4, PC_ALU, PC_0, PC_EPC = map(Bits(2), range(4))  
 
         # A_sel
         A_XXX = Bits(1)(0)
-        A_PC = Bits(1)(0)
-        A_RS1 = Bits(1)(1)
-
+        A_PC, A_RS1 = map(Bits(1), range(2))  
         # B_sel
         B_XXX = Bits(1)(0)
-        B_IMM = Bits(1)(0)
-        B_RS2 = Bits(1)(1)
-
+        B_IMM, B_RS2 = map(Bits(1), range(2))  
         # imm_sel
-        IMM_X = Bits(3)(0)
-        IMM_I = Bits(3)(1)
-        IMM_S = Bits(3)(2)
-        IMM_U = Bits(3)(3)
-        IMM_J = Bits(3)(4)
-        IMM_B = Bits(3)(5)
-        IMM_Z = Bits(3)(6)
-
+        IMM_X, IMM_I, IMM_S, IMM_U, IMM_J, IMM_B, IMM_Z = map(Bits(3), range(7))  
         # br_type
-        BR_XXX = Bits(3)(0)
-        BR_LTU = Bits(3)(1)
-        BR_LT = Bits(3)(2)
-        BR_EQ = Bits(3)(3)
-        BR_GEU = Bits(3)(4)
-        BR_GE = Bits(3)(5)
-        BR_NE = Bits(3)(6)
-
+        BR_XXX, BR_LTU, BR_LT, BR_EQ, BR_GEU, BR_GE, BR_NE = map(Bits(3), range(7))  
         # st_type
-        ST_XXX = Bits(2)(0)
-        ST_SW = Bits(2)(1)
-        ST_SH = Bits(2)(2)
-        ST_SB = Bits(2)(3)
-
+        ST_XXX, ST_SW, ST_SH, ST_SB = map(Bits(2), range(4))  
         # ld_type
-        LD_XXX = Bits(3)(0)
-        LD_LW = Bits(3)(1)
-        LD_LH = Bits(3)(2)
-        LD_LB = Bits(3)(3)
-        LD_LHU = Bits(3)(4)
-        LD_LBU = Bits(3)(5)
-
+        LD_XXX, LD_LW, LD_LH, LD_LB, LD_LHU, LD_LBU = map(Bits(3), range(6))  
         # wb_sel
-        WB_ALU = Bits(2)(0)
-        WB_MEM = Bits(2)(1)
-        WB_PC4 = Bits(2)(2)
-        WB_CSR = Bits(2)(3)
+        WB_ALU, WB_MEM, WB_PC4, WB_CSR = map(Bits(2), range(4))
+
 
         rv32i = RV32I()
         CSR_CMD = CSR_CMD_()
@@ -162,20 +121,15 @@ class Control(Module):
 
         ctrl_signals = dict_lookup(inst_map, io.insn, default=default)
 
-        # Control signals for Fetch
         io.ctrl = ctrl_sig({
         "pc_sel" : ctrl_signals[0:2],
-        "inst_kill" : ctrl_signals[11],
-
-        # Control signals for Execute
         "A_sel" : ctrl_signals[2],
         "B_sel" : ctrl_signals[3],
         "imm_sel" : ctrl_signals[4:7],
         "alu_op" : ctrl_signals[7:11],
+        "inst_kill" : ctrl_signals[11],
         "br_type" : ctrl_signals[12:15],
         "st_type" : ctrl_signals[15:17],
-
-        # Control signals for Write Back
         "ld_type" : ctrl_signals[17:20],
         "wb_sel" : ctrl_signals[20:22],
         "wb_en" : ctrl_signals[22],
