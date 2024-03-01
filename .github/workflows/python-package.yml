@@ -21,9 +21,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Icarus Verilog
+    - name: Install verilator
       run: |
-        sudo apt install -y --no-install-recommends iverilog
+        sudo apt install -y --no-install-recommends verilator
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
