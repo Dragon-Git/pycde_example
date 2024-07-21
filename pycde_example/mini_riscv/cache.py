@@ -8,7 +8,7 @@ from pycde import fsm
 from .const import XLEN
 
 RamI32x32 = esi.DeclareRandomAccessMemory(types.i32, 32, "RamI32x32")
-WriteType = RamI32x32.write.to_server_type
+WriteType = RamI32x32.write.type.req
 ReqType = StructType({"addr": Bits(XLEN), "data": Bits(XLEN), "mask": Bits(XLEN//8), "abort": Bits(1)})
 class Cache_fsm(fsm.Machine):
     cpu_req_vld = Input(Bits(1))

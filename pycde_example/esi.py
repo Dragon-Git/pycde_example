@@ -1,10 +1,10 @@
 import pycde
-from pycde import (Input, InputChannel, OutputChannel, Module, generator, types)
+from pycde import (Clock, InputChannel, OutputChannel, Module, generator, types)
 
 
 
 class Producer(Module):
-  clk = Input(types.i1)
+  clk = Clock()
   const_out = OutputChannel(types.i32)
 
   @generator
@@ -16,7 +16,7 @@ class Producer(Module):
 
 
 class Consumer(Module):
-  clk = Input(types.i1)
+  clk = Clock()
   int_in = InputChannel(types.i32)
 
   @generator
@@ -25,7 +25,7 @@ class Consumer(Module):
 
 
 class Top(Module):
-  clk = Input(types.i1)
+  clk = Clock()
 
   @generator
   def construct(ports):

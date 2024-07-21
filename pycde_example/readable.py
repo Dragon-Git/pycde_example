@@ -1,8 +1,8 @@
-from pycde import (Output, Input, Module, generator, types, dim, System)
+from pycde import (Output, Input, Clock, Module, generator, types, dim, System)
 
 
 class WireNames(Module):
-  clk = Input(types.i1)
+  clk = Clock()
   sel = Input(types.i2)
   data_in = Input(dim(32, 3))
 
@@ -18,5 +18,5 @@ class WireNames(Module):
     ports.b = arr_data[ports.sel]
 
 
-system = System([WireNames], name="test_lib")
+system = System([WireNames], name="test_lib", output_directory="build/test_lib")
 system.compile()
