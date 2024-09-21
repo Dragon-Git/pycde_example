@@ -21,7 +21,7 @@ class Cordic(Module):
     def build_comb(ports) -> None:
         taps = [st_m_op(ports.coord_i, lambda x : x.as_sint())]
         for i in range(16):
-            dirc = taps[-1].theta.as_bits(32).slice(Bits(32)(31), 1)
+            dirc = taps[-1].theta.as_bits(32).slice(Bits(5)(31), 1)
             x_sh = comb.ShrSOp(taps[-1].x.as_bits(), Bits(32)(i)).as_sint()
             y_sh = comb.ShrSOp(taps[-1].y.as_bits(), Bits(32)(i)).as_sint()
             with If(dirc):
