@@ -10,7 +10,7 @@ class Producer(Module):
   @generator
   def construct(ports):
     a = pycde.dim(32, 5)([1, 2, 3, 4, 5], "arr_data")
-    chan, ready = types.channel(types.i32).wrap(a[2].reg(ports.clk), valueOrEmpty = 1)
+    chan, ready = types.channel(types.i32).wrap(a[2].reg(ports.clk), valid_or_empty = 1)
     ports.const_out = chan
 
 

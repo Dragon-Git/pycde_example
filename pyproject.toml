@@ -10,7 +10,7 @@ requires-python = ">=3.8"
 dependencies = [
     "PyYAML",
     "cocotb",
-    "pycde>=0.6.0, <0.7.0",
+    "pycde>=0.7.0, <0.8.0",
 ]
 
 [project.optional-dependencies]
@@ -22,10 +22,6 @@ dev = ['pycde_example[lint, doc, test]']
 [project.urls]
 "Homepage" = "https://github.com//Dragon-Git/pycde_example"
 "Bug Tracker" = "https://github.com//Dragon-Git/pycde_example/issues"
-
-# https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html
-[tool.black]
-line-length = 120
 
 # https://beta.ruff.rs/docs/settings/
 [tool.ruff]

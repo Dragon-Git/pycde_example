@@ -9,7 +9,7 @@ WIDTH = max(POLY) + 1
 class Lfsr(Module):
   clk = Clock()
   rst = Input(Bits(1))
-  seed = Input(UInt(WIDTH))
+  seed = Input(Bits(WIDTH))
   cnt = Output(UInt(WIDTH))
 
   @generator
