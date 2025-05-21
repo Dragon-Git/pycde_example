@@ -1,6 +1,6 @@
 import math
 from pycde import System, Module, Clock, Input, Output, generator
-from pycde.behavioral import If, Else, EndIf
+from pycde.construct import Mux
 from pycde.dialects import comb
 from pycde.types import Bits, SInt, StructType
 
@@ -24,19 +24,19 @@ class Cordic(Module):
             dirc = taps[-1].theta.as_bits(32).slice(Bits(5)(31), 1)
             x_sh = comb.ShrSOp(taps[-1].x.as_bits(), Bits(32)(i)).as_sint()
             y_sh = comb.ShrSOp(taps[-1].y.as_bits(), Bits(32)(i)).as_sint()
-            with If(dirc):
-                coord_t = Coord_sint({
+            coord_t = Mux(
+                dirc,
+                Coord_sint({
+                    "x": (taps[-1].x + y_sh).as_sint(32),
+                    "y": (taps[-1].y - x_sh).as_sint(32),
+                    "theta": (taps[-1].theta + SInt(32)(theta_list[i])).as_sint(32),
+                }),
+                Coord_sint({
                     "x": (taps[-1].x - y_sh).as_sint(32),
                     "y": (taps[-1].y + x_sh).as_sint(32),
                     "theta": (taps[-1].theta - SInt(32)(theta_list[i])).as_sint(32),
                 })
-            with Else():
-                coord_t = Coord_sint({
-                    "x": (taps[-1].x + y_sh).as_sint(32),
-                    "y": (taps[-1].y - x_sh).as_sint(32),
-                    "theta": (taps[-1].theta + SInt(32)(theta_list[i])).as_sint(32),
-                })
-            EndIf()
+            )
             taps.append(coord_t)
         ports.coord_o = st_m_op(taps[-1], lambda x : x.as_bits(32).reg(ports.clk, ports.rst), Coord_port)
         # TODO: overflow process
