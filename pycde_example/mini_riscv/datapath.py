@@ -62,8 +62,8 @@ class Datapath(Module):
 
         # regFile read
         write_pkt = Wire(WriteType)
-        (rs1_addr, _) = types.channel(Bits(5)).wrap(fe_inst[15:20], valid_or_empty=1)
-        (rs2_addr, _) = types.channel(Bits(5)).wrap(fe_inst[20:25], valid_or_empty=1)
+        (rs1_addr, _) = types.channel(UInt(5)).wrap(fe_inst[15:20].as_uint(), valid_or_empty=1)
+        (rs2_addr, _) = types.channel(UInt(5)).wrap(fe_inst[20:25].as_uint(), valid_or_empty=1)
         reg_file = Regfile(clk=io.clk, rst=io.rst, rs1_read_addr=rs1_addr, rs2_read_addr=rs2_addr, rd_write=write_pkt)
         rdata1, _ = reg_file.rs1_read_data.unwrap(readyOrRden=1)
         rdata2, _ = reg_file.rs2_read_data.unwrap(readyOrRden=1)

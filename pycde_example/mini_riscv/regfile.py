@@ -10,9 +10,9 @@ WriteType = RamI32x32.write.type.req
 class Regfile(Module):
     clk = Clock()
     rst = Reset()
-    rs1_read_addr = InputChannel(Bits(DEPTH_1.bit_length()))
+    rs1_read_addr = InputChannel(UInt(DEPTH_1.bit_length()))
     rs1_read_data = OutputChannel(Bits(XLEN))
-    rs2_read_addr = InputChannel(Bits(DEPTH_1.bit_length()))
+    rs2_read_addr = InputChannel(UInt(DEPTH_1.bit_length()))
     rs2_read_data = OutputChannel(Bits(XLEN))
     rd_write = InputChannel(WriteType)
 
@@ -27,7 +27,7 @@ class Regfile(Module):
         bundled_channels = read_bundle.unpack(address=io.rs2_read_addr)
         io.rs2_read_data = bundled_channels["data"]
  
-        RamI32x32.instantiate_builtin(appid=AppID("mem"), builtin="sv_mem", result_types=[], inputs=[io.clk, io.rst])
+        RamI32x32.implement_as("sv_mem", io.clk, io.rst)
 
 if __name__ == '__main__':
     mod = System([Regfile],name="ip_riscv_lib", output_directory="build/ip_riscv_lib")
