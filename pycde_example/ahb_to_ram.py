@@ -1,5 +1,5 @@
 from pycde import (Clock, Reset, Input, Output, Module, System, generator)
-from pycde.types import Bits, UInt, types
+from pycde.types import Bits, UInt, types  # noqa: F401
 from pycde.constructs import Reg, Mux
 from pycde.signals import BitsSignal
 from pycde.module import ModuleBuilder
