@@ -47,8 +47,10 @@ jobs:
         python pycde_example/*.py
         python -m pycde_example.mini_riscv
 
-    - name: Test with tox
-      run: tox
+    - name: Test with pytest
+      run: |
+        python pycde_example/ahb_to_ram.py
+        pytest pycde_example/test_ahb_to_ram.py
 
     - name: Upload coverage to codecov
       run: |

@@ -16,7 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 lint = ['ruff']
 doc = ['sphinx']
-test = ['pytest', 'tox']
+test = ['pytest', 'tox', "cocotbext-ahb"]
 dev = ['pycde_example[lint, doc, test]']
 
 [project.urls]
@@ -27,6 +27,6 @@ dev = ['pycde_example[lint, doc, test]']
 [tool.ruff]
 line-length = 120
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
     convention = "google"
-    
+

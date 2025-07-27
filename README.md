@@ -10,11 +10,11 @@ Operating systems:
 - Windows
 - Linux 
  
-Python: 3.8 ~ 3.11 (64-bit only)
+Python: 3.8 ~ 3.13 (64-bit only)
 
 - Use Python's package installer pip to install pycde example dependencies:
 ```bash
-pip install -r requirements.txt
+pip install .
 ```
 
 - Build from source
