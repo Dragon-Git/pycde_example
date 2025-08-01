@@ -9,9 +9,9 @@ import sys
 async def monitor(dut):
     while True:
         await RisingEdge(dut.hclk)
-        cocotb.log.info(dut.hready.value)
-        cocotb.log.info(dut.hresp.value)
-        cocotb.log.info(dut.hrdata.value)
+        cocotb.log.info(dut.a_hready.value)
+        cocotb.log.info(dut.a_hresp.value)
+        cocotb.log.info(dut.a_hrdata.value)
 
 @cocotb.test()
 async def random_test(dut):
@@ -24,10 +24,11 @@ async def random_test(dut):
     dut.hresetn.value = 1
     await RisingEdge(dut.hclk)
     dut.hresetn.value = 0
-    dut.SRAMRDATA.value = 0xdeadbeef
+    dut.B_SRAMRDATA.value = 0xdeadbeef
 
     ahb_lite_master = AHBLiteMaster(
-        AHBBus.from_entity(dut), dut.hclk, dut.hresetn, def_val="0"
+        # AHBBus.from_entity(dut), dut.hclk, dut.hresetn, def_val="0"
+        AHBBus.from_prefix(dut, "a"), dut.hclk, dut.hresetn, def_val="0"
     )
 
     # Perform the writes and reads
