@@ -1,10 +1,10 @@
 import pycde
 
-from pycde import Clock, Module, Reset, Input, Output, generator,  ir
+from pycde import Clock, Module, Reset, Input, Output, generator, ir
 from pycde.types import Bits
-from pycde.circt.dialects import sv
-from pycde.circt.ir import IntegerType, IntegerAttr, InsertionPoint
+from pycde.circt.dialects import sv, hw
 from pycde import support
+from pycde.signals import _FromCirctValue
 
 def unknown_location():
     return ir.Location.unknown()
@@ -24,30 +24,35 @@ class CaseExample(Module):
 
   @generator
   def construct(ports):
+    i32_type = ir.IntegerType.get_signless(32)
+    result_reg = sv.RegOp(hw.InOutType.get(i32_type), name="result_reg")
+    
     al = sv.AlwaysCombOp()
     al.body.blocks.append()
-    with InsertionPoint(al.body.blocks[0]):
-        i6 = IntegerType.get_signless(6)
+    with ir.InsertionPoint(al.body.blocks[0]):
+        case_conditions = [sum( ((n >> i) & 1) << (2*i) for i in range(n.bit_length()) )  for n in range(80)]
+        case_values = list(range(81))[::-1]
+        
+        # 创建case patterns
+        i6 = ir.IntegerType.get_signless(max(case_conditions).bit_length() + 1)
+        case_patterns = [ir.IntegerAttr.get(i6, cond) for cond in case_conditions]
+        case_patterns.append(ir.UnitAttr.get())  # default 分支
+        
         case_op = sv.CaseOp(
             cond=ports.data_i.value,
-            casePatterns=[
-                IntegerAttr.get(i6, 0),  # case 0
-                IntegerAttr.get(i6, 1),  # case 1
-                IntegerAttr.get(i6, 4),  # case 2
-                IntegerAttr.get(i6, 5),  # case 3
-                IntegerAttr.get(i6, 16),  # case 4
-                IntegerAttr.get(i6, 17),  # case 5
-                IntegerAttr.get(i6, 20),  # case 6
-                IntegerAttr.get(i6, 21),  # case 7
-                ir.UnitAttr.get(),  # default 分支
-            ],
-            num_caseRegions=9,
+            casePatterns=case_patterns,
+            num_caseRegions=len(case_patterns),
         )
+        
+        # 为每个case分支赋值
         for i in range(len(case_op.caseRegions)):
             case_op.caseRegions[i].blocks.append()
-            with InsertionPoint(case_op.caseRegions[i].blocks[0]):
+            with ir.InsertionPoint(case_op.caseRegions[i].blocks[0]):
                 sv.VerbatimOp(ir.StringAttr.get(f"// value = 32'h{i};\n"), [])
-    ports.data_o = Bits(32)(0)
+                sv.BPAssignOp(result_reg, Bits(32)(case_values[i]).value)
+    
+    # 从寄存器读取值并赋给输出端口
+    ports.data_o = _FromCirctValue(sv.ReadInOutOp(result_reg).result)
 
 if __name__ == "__main__":
 
