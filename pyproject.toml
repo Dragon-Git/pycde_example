@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "PyYAML",
-    "cocotb",
+    "cocotb>=2.0.0, <3.0.0",
     "pycde>=0.8.0, <0.10.0",
 ]
 

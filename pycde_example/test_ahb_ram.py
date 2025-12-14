@@ -2,7 +2,7 @@ import random
 import cocotb
 import cocotb.clock
 from cocotb.triggers import RisingEdge
-from cocotb.runner import get_runner
+from cocotb_tools.runner import get_runner
 from cocotbext.ahb import AHBBus, AHBLiteMaster
 import sys
 
