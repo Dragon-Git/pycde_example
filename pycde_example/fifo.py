@@ -1,5 +1,5 @@
 from pycde import (System, Module, Input, Output, Clock, Reset, generator)
-from pycde.types import Bits, UInt
+from pycde.types import UInt
 from pycde.seq import FIFO
 
 class SimpleFIFO(Module):
@@ -16,9 +16,9 @@ class SimpleFIFO(Module):
                 clk=ports.clk,
                 rst=ports.rst,
                 rd_latency=1)
-        can_push = fifo.full
+        can_push = ~fifo.full
         fifo.push(ports.data_in, can_push)
-        can_pop = fifo.empty
+        can_pop = ~fifo.empty
         ports.data_out = fifo.pop(can_pop)
 
 if __name__ == '__main__':
