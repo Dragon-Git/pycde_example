@@ -1,5 +1,5 @@
-from pycde import (System, Module, Clock, Reset, InputChannel, OutputChannel, Input, Output, generator, types)
-from pycde.types import Bits, SInt, UInt  # noqa: F401
+from pycde import (System, Module, Clock, Reset, InputChannel, OutputChannel, Input, Output, generator)
+from pycde.types import Bits, SInt, UInt, Channel  # noqa: F401
 from pycde.constructs import ControlReg, NamedWire, Reg, Wire, Mux  # noqa: F401
 
 from .alu import ALU
@@ -50,7 +50,7 @@ class Datapath(Module):
         npc = 0
         pc.assign(npc)
         insn = Mux(started | io.ctrl.inst_kill | bru_taken | csr_expt, iresp_data, RV32I().NOP)
-        io.ireq, ready = types.channel(ReqType).wrap(ReqType({"addr": npc, "data": 0, "mask": 0, "abort": 0}), ~stall)
+        io.ireq, ready = Channel(ReqType).wrap(ReqType({"addr": npc, "data": 0, "mask": 0, "abort": 0}), ~stall)
 
         # Pipelining 1
         pc = Bits(32)(0xbad)
@@ -62,8 +62,8 @@ class Datapath(Module):
 
         # regFile read
         write_pkt = Wire(WriteType)
-        (rs1_addr, _) = types.channel(UInt(5)).wrap(fe_inst[15:20].as_uint(), valid_or_empty=1)
-        (rs2_addr, _) = types.channel(UInt(5)).wrap(fe_inst[20:25].as_uint(), valid_or_empty=1)
+        (rs1_addr, _) = Channel(UInt(5)).wrap(fe_inst[15:20].as_uint(), valid_or_empty=1)
+        (rs2_addr, _) = Channel(UInt(5)).wrap(fe_inst[20:25].as_uint(), valid_or_empty=1)
         reg_file = Regfile(clk=io.clk, rst=io.rst, rs1_read_addr=rs1_addr, rs2_read_addr=rs2_addr, rd_write=write_pkt)
         rdata1, _ = reg_file.rs1_read_data.unwrap(readyOrRden=1)
         rdata2, _ = reg_file.rs2_read_data.unwrap(readyOrRden=1)
@@ -126,7 +126,7 @@ class Datapath(Module):
 
         (wdata, _) = WriteType.wrap({'data': reg_wdata, 'address': fe_inst[7:12].as_uint()}, ctrl_rg.wb_en & ~stall & ~csr.expt)
         write_pkt.assign(wdata)
-        io.dreq, _ = types.channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15, "abort" : csr.expt}), 1)
+        io.dreq, _ = Channel(ReqType).wrap(ReqType({"addr": 123, "data": 456, "mask": 15, "abort" : csr.expt}), 1)
 
 
 if __name__ == '__main__':

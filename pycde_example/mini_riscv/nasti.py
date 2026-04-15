@@ -1,4 +1,4 @@
-from pycde.types import Bits, SInt, UInt, types  # noqa: F401
+from pycde.types import Bits, SInt, UInt  # noqa: F401
 from pycde import esi, signal
 
 class NastiParameters:

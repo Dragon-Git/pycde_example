@@ -10,7 +10,7 @@ Operating systems:
 - Windows
 - Linux 
  
-Python: 3.8 ~ 3.13 (64-bit only)
+Python: 3.10 ~ 3.14 (64-bit only)
 
 - Use Python's package installer pip to install pycde example dependencies:
 ```bash

@@ -1,5 +1,5 @@
 from pycde import (System, Module, Clock, Reset, Input, Output, generator, types)  # noqa: F401
-from pycde.types import Bits  # noqa: F401
+from pycde.types import Bits, Channel  # noqa: F401
 from pycde.constructs import Wire
 
 from .cache import Cache, ReqType
@@ -14,8 +14,8 @@ class Tile(Module):
 
     @generator
     def build(io):
-        dreq = Wire(types.channel(ReqType))
-        ireq = Wire(types.channel(ReqType))
+        dreq = Wire(Channel(ReqType))
+        ireq = Wire(Channel(ReqType))
         dcache = Cache("dcache", clk=io.clk, rst=io.rst, req=dreq)
         icache = Cache("icache", clk=io.clk, rst=io.rst, req=ireq)
         core = Core(clk=io.clk, rst=io.rst, dresp=dcache.resp, iresp=icache.resp)

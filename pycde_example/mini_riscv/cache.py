@@ -1,13 +1,13 @@
 
 from pycde import (Clock, Reset, InputChannel, OutputChannel, Input, Module, System, generator)
-from pycde.types import Bits, SInt, UInt, types, StructType  # noqa: F401
+from pycde.types import Bits, SInt, UInt, StructType, Channel  # noqa: F401
 from pycde.constructs import Wire  # noqa: F401
 from pycde import esi
 from pycde import fsm
 
 from .const import XLEN
 
-RamI32x32 = esi.DeclareRandomAccessMemory(types.i32, 32, "RamI32x32")
+RamI32x32 = esi.DeclareRandomAccessMemory(Bits(32), 32, "RamI32x32")
 WriteType = RamI32x32.write.type.req
 ReqType = StructType({"addr": Bits(XLEN), "data": Bits(XLEN), "mask": Bits(XLEN//8), "abort": Bits(1)})
 class Cache_fsm(fsm.Machine):
@@ -56,7 +56,7 @@ class Cache(Module):
     @generator
     def construct(io):
         pack, valid = io.req.unwrap(readyOrRden=1)
-        io.resp, ready = types.channel(Bits(32)).wrap(pack.data.reg(), valid)
+        io.resp, ready = Channel(Bits(32)).wrap(pack.data.reg(), valid)
 
 
 if __name__ == '__main__':
