@@ -110,5 +110,5 @@ class AHBRam(Module):
         io.a_hrdata = BitsSignal.concat(hrdata_values[::-1])
 
 if __name__ == '__main__':
-    mod = System([AHBRam], name="ahb_to_ram", output_directory="build/ahb_to_ram")
+    mod = System([AHBRam], name="ip_amba_lib", output_directory="build/ip_amba_lib")
     mod.compile()

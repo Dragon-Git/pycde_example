@@ -3,7 +3,7 @@ import cocotb.clock
 from cocotb.triggers import RisingEdge
 from cocotb_tools.runner import get_runner
 from cocotbext.ahb import AHBBus, AHBLiteMaster
-import sys
+import pytest
 
 
 async def monitor(dut):
@@ -37,20 +37,14 @@ async def random_test(dut):
     cocotb.log.info(f"Write response: {resp}")
     assert resp[0]["data"] == "0xdeadbeef", "Read data does not match expected value"
 
-def test_ahb_sram_runner():
-
-    sys.path.append(__file__.replace("test_ahb_to_ram.py", ""))
+@pytest.mark.parametrize("cnt", list(range(100)))
+def test_ahb_sram_runner(cnt):
     runner = get_runner("verilator")
-    runner.build(
-        sources=[__file__.replace("pycde_example/test_ahb_to_ram.py", "build/ahb_to_ram/hw/AHBRam.sv")],
-        hdl_toplevel="AHBRam",
-        always=True,
-        build_args=[],
-    )
     runner.test(
-        hdl_toplevel="AHBRam", test_module="test_ahb_to_ram", test_args=[]
+        hdl_toplevel="AHBRam", 
+        hdl_toplevel_lang="verilog",
+        test_module="test_ahb_to_ram", 
+        build_dir=f"build/{__name__}__build",
+        test_dir=f"build/{__name__}__build",
+        test_args=[]
     )
-
-
-if __name__ == "__main__":
-    test_ahb_sram_runner()

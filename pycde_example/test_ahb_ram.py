@@ -1,10 +1,12 @@
 import random
 import cocotb
 import cocotb.clock
+import pytest
 from cocotb.triggers import RisingEdge
 from cocotb_tools.runner import get_runner
 from cocotbext.ahb import AHBBus, AHBLiteMaster
-import sys
+import numpy as np
+from multiprocessing import shared_memory, resource_tracker
 
 
 async def monitor(dut):
@@ -29,6 +31,14 @@ async def random_test(dut):
     ahb_lite_master = AHBLiteMaster(
         AHBBus.from_entity(dut), dut.hclk, dut.hresetn, def_val="0"
     )
+    
+
+    shm = shared_memory.SharedMemory("my_shm", create=False, size=8)
+    resource_tracker.unregister(shm._name, "shared_memory")
+    arr = np.ndarray(8, dtype=np.int8, buffer=shm.buf)
+    print(f"Test data from shared memory: {arr}")
+    shm.close()  # 仅关闭当前进程的引用，不 unlink
+
 
     # Perform the writes and reads
     value = random.randint(0, 2**32)
@@ -43,20 +53,20 @@ async def random_test(dut):
     cocotb.log.info(f"Write response: {resp}")
     assert [int(r["data"], 16) for r in resp] == value, "Read data does not match expected value"
 
-def test_ahb_sram_runner():
-
-    sys.path.append(__file__.replace("test_ahb_ram.py", ""))
+@pytest.mark.parametrize("cnt", list(range(100)))
+def test_ahb_sram_runner(cnt):
     runner = get_runner("verilator")
-    runner.build(
-        sources=[__file__.replace("pycde_example/test_ahb_ram.py", "build/ip_amba_lib/hw/Sram.sv")],
-        hdl_toplevel="Sram",
-        always=True,
-        build_args=[],
-    )
     runner.test(
-        hdl_toplevel="Sram", test_module="test_ahb_ram", test_args=[]
+        hdl_toplevel="Sram", 
+        hdl_toplevel_lang="verilog",
+        test_module="test_ahb_ram", 
+        build_dir=f"build/{__name__}__build",
+        test_dir=f"build/{__name__}__build",
+        test_args=[]
     )
 
-
-if __name__ == "__main__":
-    test_ahb_sram_runner()
+shm = shared_memory.SharedMemory("my_shm", create=False, size=8)
+resource_tracker.unregister(shm._name, "shared_memory")
+arr = np.ndarray(8, dtype=np.int8, buffer=shm.buf)
+arr[:] = np.arange(0, 8, dtype=np.int8)
+shm.close()

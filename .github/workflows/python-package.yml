@@ -50,7 +50,7 @@ jobs:
       run: |
         python pycde_example/ahb_ram.py
         python pycde_example/ahb_to_ram.py
-        pytest pycde_example
+        pytest pycde_example -n auto
 
     - name: Upload coverage to codecov
       run: |

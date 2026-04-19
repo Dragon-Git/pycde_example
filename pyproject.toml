@@ -16,7 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 lint = ['ruff']
 doc = ['sphinx']
-test = ['pytest', 'tox', "cocotbext-ahb"]
+test = ['pytest-xdist', 'tox', "cocotbext-ahb"]
 dev = ['pycde_example[lint, doc, test]']
 
 [project.urls]
