@@ -31,6 +31,7 @@ jobs:
 
     - name: Install Python dependencies
       run: |
+        export COCOTB_IGNORE_PYTHON_REQUIRES="True"
         python -m pip install --upgrade pip
         python -m pip install -e '.[dev]'
         pip install tox-gh-actions
