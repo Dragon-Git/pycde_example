@@ -22,7 +22,7 @@ jobs:
     - uses: actions/checkout@v6
 
     - name: Install verilator
-      uses: veryl-lang/setup-verilator@v1
+      uses: veryl-lang/setup-verilator@v2
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
