@@ -1,5 +1,6 @@
-from pycde.types import Bits, SInt, UInt  # noqa: F401
 from pycde import esi, signal
+from pycde.types import Bits, SInt, UInt  # noqa: F401
+
 
 class NastiParameters:
     def __init__(self, data_bits, addr_bits, id_bits):

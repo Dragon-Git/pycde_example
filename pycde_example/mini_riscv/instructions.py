@@ -1,4 +1,6 @@
 from .bit_pat import BitPat
+
+
 #   Loads
 class RV32I:
     def __init__(self):

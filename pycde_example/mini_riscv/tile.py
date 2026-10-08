@@ -1,10 +1,11 @@
-from pycde import (System, Module, Clock, Reset, Input, Output, generator, types)  # noqa: F401
-from pycde.types import Bits, Channel  # noqa: F401
+from pycde import Clock, Input, Module, Output, Reset, System, generator, types  # noqa: F401
 from pycde.constructs import Wire
+from pycde.types import Bits, Channel  # noqa: F401
 
 from .cache import Cache, ReqType
 from .const import XLEN  # noqa: F401
 from .core import Core
+
 
 class Tile(Module):
     clk = Clock()

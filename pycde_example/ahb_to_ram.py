@@ -1,8 +1,9 @@
-from pycde import (Clock, Reset, Input, Output, Module, System, generator)
-from pycde.types import Bits, UInt
-from pycde.constructs import Reg, Mux
-from pycde.signals import BitsSignal
+from pycde import Clock, Input, Module, Output, Reset, System, generator
+from pycde.constructs import Mux, Reg
 from pycde.module import ModuleBuilder
+from pycde.signals import BitsSignal
+from pycde.types import Bits, UInt
+
 
 class IOBase:
     pass

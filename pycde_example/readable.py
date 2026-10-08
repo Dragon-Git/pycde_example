@@ -1,4 +1,4 @@
-from pycde import (Output, Input, Clock, Module, generator, types, dim, System)
+from pycde import Clock, Input, Module, Output, System, dim, generator, types
 
 
 class WireNames(Module):

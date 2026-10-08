@@ -1,10 +1,11 @@
-from pycde import (System, Module, Clock, Input, Output, generator, types)  # noqa: F401
-from pycde.dialects import comb, hw  # noqa: F401
-from pycde.types import Bits, SInt, UInt  # noqa: F401
+from pycde import Clock, Input, Module, Output, System, generator, types  # noqa: F401
 from pycde.constructs import Mux  # noqa: F401
+from pycde.dialects import comb, hw  # noqa: F401
 from pycde.signals import ArraySignal
+from pycde.types import Bits, SInt, UInt  # noqa: F401
 
 from .const import XLEN
+
 
 class Immgen(Module):
     insn = Input(Bits(XLEN))

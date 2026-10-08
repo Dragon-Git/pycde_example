@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from pycde.types import Bits
+
 from pycde.constructs import Reg
 from pycde.signals import BitsSignal
+from pycde.types import Bits
 
-from .const import PC_const, XLEN
+from .const import XLEN, PC_const
 
 
 class CSR_CMD_:

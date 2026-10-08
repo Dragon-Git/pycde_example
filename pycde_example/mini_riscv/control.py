@@ -1,11 +1,11 @@
-from pycde import System, Module, Input, Output, generator
-from pycde.types import Bits, StructType
+from pycde import Input, Module, Output, System, generator
 from pycde.signals import BitsSignal
+from pycde.types import Bits, StructType
 
 from .bit_pat import dict_lookup
-from .instructions import RV32I
-from .csr import CSR_CMD_
 from .const import XLEN
+from .csr import CSR_CMD_
+from .instructions import RV32I
 
 ctrl_sig = StructType({
     # Control signals for Fetch

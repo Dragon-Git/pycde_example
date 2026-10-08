@@ -1,5 +1,6 @@
-from pycde import (System, Module, Input, Output, Clock, generator, dim)
+from pycde import Clock, Input, Module, Output, System, dim, generator
 from pycde.types import Bits, SInt
+
 
 class Fir(Module):
   clk = Clock()

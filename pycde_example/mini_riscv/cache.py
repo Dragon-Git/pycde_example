@@ -1,9 +1,7 @@
 
-from pycde import (Clock, Reset, InputChannel, OutputChannel, Input, Module, System, generator)
-from pycde.types import Bits, SInt, UInt, StructType, Channel  # noqa: F401
+from pycde import Clock, Input, InputChannel, Module, OutputChannel, Reset, System, esi, fsm, generator
 from pycde.constructs import Wire  # noqa: F401
-from pycde import esi
-from pycde import fsm
+from pycde.types import Bits, Channel, SInt, StructType, UInt  # noqa: F401
 
 from .const import XLEN
 
@@ -14,7 +12,6 @@ class Cache_fsm(fsm.Machine):
     cpu_req_vld = Input(Bits(1))
     cpu_req_data_mask = Input(Bits(1))
     cpu_mask_reduce_or = Input(Bits(1)) 
-    nasti_ar = Input(Bits(1))
     nasti_ar = Input(Bits(1))
     nasti_aw = Input(Bits(1))
     nasti_b = Input(Bits(1))
@@ -56,7 +53,7 @@ class Cache(Module):
     @generator
     def construct(io):
         pack, valid = io.req.unwrap(readyOrRden=1)
-        io.resp, ready = Channel(Bits(32)).wrap(pack.data.reg(), valid)
+        io.resp, _ready = Channel(Bits(32)).wrap(pack.data.reg(), valid)
 
 
 if __name__ == '__main__':
