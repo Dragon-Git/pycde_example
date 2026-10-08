@@ -1,7 +1,9 @@
 import sys
+from multiprocessing import resource_tracker, shared_memory
+
 import pytest
 from cocotb_tools.runner import get_runner
-from multiprocessing import shared_memory, resource_tracker
+
 
 def pytest_sessionstart(session):
     if hasattr(session.config, "workerinput"):  # 仅在主进程执行

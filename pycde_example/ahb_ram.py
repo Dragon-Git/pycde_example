@@ -1,9 +1,9 @@
 
-from pycde import (AppID, Clock, Reset, Input, Output, Module, System, generator, esi,  ir)
-from pycde.types import Bits, UInt
-from pycde.signals import BitsSignal
+from pycde import AppID, Clock, Input, Module, Output, Reset, System, esi, generator, ir, support
 from pycde.dialects import sv
-from pycde import support
+from pycde.signals import BitsSignal
+from pycde.types import Bits, UInt
+
 
 def unknown_location():
     return ir.Location.unknown()

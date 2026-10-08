@@ -1,6 +1,7 @@
-from pycde import (System, Module, Input, Output, Clock, Reset, generator)
-from pycde.types import Bits, UInt
+from pycde import Clock, Input, Module, Output, Reset, System, generator
 from pycde.seq import FIFO
+from pycde.types import Bits, UInt
+
 
 class SimpleFIFO(Module):
     clk = Clock()

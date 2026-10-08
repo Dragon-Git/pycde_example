@@ -1,8 +1,8 @@
 import pycde
-from pycde import Clock, Input, Output, Module, generator
-from pycde.types import Bits
+from pycde import Clock, Input, Module, Output, generator
 from pycde.dialects import seq
 from pycde.signals import _FromCirctValue
+from pycde.types import Bits
 
 
 class SeqOpsExample(Module):

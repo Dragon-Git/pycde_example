@@ -1,8 +1,9 @@
 
-from pycde import (AppID, Clock, Reset, InputChannel, OutputChannel, Module, System, generator, esi)
+from pycde import AppID, Clock, InputChannel, Module, OutputChannel, Reset, System, esi, generator
 from pycde.types import Bits, SInt, UInt  # noqa: F401
 
 from .const import XLEN
+
 DEPTH_1 = 31
 RamI32x32 = esi.DeclareRandomAccessMemory(Bits(XLEN), DEPTH_1 +1, "RamI32x32")
 WriteType = RamI32x32.write.type.req

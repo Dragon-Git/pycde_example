@@ -1,11 +1,10 @@
 import pycde
-
-from pycde import Module, Input, Output, generator, ir
-from pycde.types import Bits
-from pycde.circt.dialects import sv, hw, comb
+from pycde import Input, Module, Output, generator, ir, support
 from pycde.circt import ir as circt_ir
-from pycde import support
+from pycde.circt.dialects import comb, hw, sv
 from pycde.signals import _FromCirctValue
+from pycde.types import Bits
+
 
 def unknown_location():
     return ir.Location.unknown()

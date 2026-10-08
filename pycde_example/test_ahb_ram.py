@@ -1,11 +1,12 @@
 import random
+from multiprocessing import resource_tracker, shared_memory
+
 import cocotb
 import cocotb.clock
+import numpy as np
 import pytest
 from cocotb.triggers import RisingEdge
 from cocotbext.ahb import AHBBus, AHBLiteMaster
-import numpy as np
-from multiprocessing import shared_memory, resource_tracker
 
 
 async def monitor(dut):

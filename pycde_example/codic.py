@@ -1,5 +1,6 @@
 import math
-from pycde import System, Module, Clock, Input, Output, generator
+
+from pycde import Clock, Input, Module, Output, System, generator
 from pycde.constructs import Mux
 from pycde.dialects import comb
 from pycde.types import Bits, SInt, StructType

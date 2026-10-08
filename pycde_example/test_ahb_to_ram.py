@@ -1,8 +1,8 @@
 import cocotb
 import cocotb.clock
+import pytest
 from cocotb.triggers import RisingEdge
 from cocotbext.ahb import AHBBus, AHBLiteMaster
-import pytest
 
 
 async def monitor(dut):

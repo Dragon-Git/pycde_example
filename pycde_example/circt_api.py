@@ -1,8 +1,7 @@
 # silicon.py
-import pycde.circt as circt
-from pycde import System
-from pycde.circt.ir import Context, InsertionPoint, IntegerType, Location, Module
+from pycde import System, circt
 from pycde.circt.dialects import hw
+from pycde.circt.ir import Context, InsertionPoint, IntegerType, Location, Module
 
 i32 = IntegerType.get_signless(32)
 def _default(module):

@@ -1,5 +1,6 @@
-from pycde import (System, Module, Clock, Reset, Input, Output, generator)
+from pycde import Clock, Input, Module, Output, Reset, System, generator
 from pycde.types import SInt
+
 
 class Test_hwarith(Module):
     clk = Clock()

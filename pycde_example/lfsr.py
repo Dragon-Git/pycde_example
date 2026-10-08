@@ -1,7 +1,7 @@
-from pycde import (Output, Input, Clock, Module, generator, System)
-from pycde.types import Bits, SInt, UInt  # noqa: F401
+from pycde import Clock, Input, Module, Output, System, generator
 from pycde.constructs import ControlReg, NamedWire, Reg, Wire  # noqa: F401
 from pycde.dialects import comb
+from pycde.types import Bits, SInt, UInt  # noqa: F401
 
 POLY = [7, 5, 4, 3]
 WIDTH = max(POLY) + 1

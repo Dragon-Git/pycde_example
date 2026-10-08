@@ -1,7 +1,8 @@
 import pycde
-from pycde import (Output, Clock, Reset, Module, generator, System)
+from pycde import Clock, Module, Output, Reset, System, generator
+from pycde.constructs import ControlReg, Mux, NamedWire, Reg, Wire  # noqa: F401
 from pycde.types import Bits, SInt, UInt  # noqa: F401
-from pycde.constructs import ControlReg, NamedWire, Reg, Wire, Mux  # noqa: F401
+
 
 @pycde.modparams
 def counter(limit:int, inc = 1):

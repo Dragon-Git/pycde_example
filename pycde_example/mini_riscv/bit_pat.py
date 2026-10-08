@@ -4,9 +4,9 @@ https://github.com/freechipsproject/chisel3/blob/v3.3.2/src/main/scala/chisel3/u
 """
 import string
 
-from pycde.types import Bits
-from pycde.signals import BitVectorSignal
 from pycde.constructs import Mux
+from pycde.signals import BitVectorSignal
+from pycde.types import Bits
 
 
 class BitPat:

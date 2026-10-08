@@ -1,11 +1,11 @@
-from pycde import System, Module, Clock, Reset, Input, Output, generator, types, dim  # noqa: F401
-from pycde.types import Bits
+from pycde import Clock, Input, Module, Output, Reset, System, dim, generator, types  # noqa: F401
 from pycde.constructs import Mux
 from pycde.signals import BitsSignal, Or
+from pycde.types import Bits
 
-from .instructions import RV32I
-from .csr import CSR_, CSR_CMD_
 from .const import XLEN
+from .csr import CSR_, CSR_CMD_
+from .instructions import RV32I
 
 
 class Cause:
@@ -102,9 +102,9 @@ class CSRGen(Module):
 
         # Counters
         CSR.time.next = (CSR.time.value.as_uint(32) + 1).as_bits(32)
-        CSR.timeh.next = Mux(CSR.time.value.and_reduce(), CSR.timeh.value, (CSR.timeh.value.as_uint(XLEN) + 1).as_bits(XLEN))  # noqa: E501
+        CSR.timeh.next = Mux(CSR.time.value.and_reduce(), CSR.timeh.value, (CSR.timeh.value.as_uint(XLEN) + 1).as_bits(XLEN))
         CSR.cycle.next = (CSR.cycle.value.as_uint(32) + 1).as_bits(32)
-        CSR.cycleh.next = Mux(CSR.cycle.value.and_reduce(), CSR.cycleh.value, (CSR.cycleh.value.as_uint(XLEN) + 1).as_bits(XLEN))  # noqa: E501
+        CSR.cycleh.next = Mux(CSR.cycle.value.and_reduce(), CSR.cycleh.value, (CSR.cycleh.value.as_uint(XLEN) + 1).as_bits(XLEN))
         CSR.instret.next = Mux(is_inst_ret, CSR.instret.value, (CSR.instret.value.as_uint(XLEN) + 1).as_bits(XLEN))
         CSR.instreth.next = Mux(is_inst_reth, CSR.instreth.value, (CSR.instreth.value.as_uint(XLEN) + 1).as_bits(XLEN))
 
@@ -115,8 +115,8 @@ class CSRGen(Module):
                 Mux(~io.stall & expt & is_E_call,     cause.Ecall, # need add PRV
                 Mux(~io.stall & expt & is_E_break,    cause.Breakpoint, cause.IllegalInst)))))
         CSR.mbadaddr.next   = Mux(~io.stall & expt & is_mbadaddr, CSR.mbadaddr.next, io.addr)
-        CSR.mstatus.next   = Mux(~io.stall & expt, CSR.mstatus.next, BitsSignal.concat([CSR.mstatus.next.as_bits()[6:], CSR.mstatus.next.as_bits()[:3], CSR.PRV_M, Bits(1)(0)]))  # noqa: E501
-        CSR.mstatus.next   = Mux(~io.stall & is_E_ret, CSR.mstatus.next, BitsSignal.concat([CSR.mstatus.next.as_bits()[6:], CSR.PRV_U, Bits(1)(1), CSR.mstatus.next.as_bits()[3:6]]))  # noqa: E501
+        CSR.mstatus.next   = Mux(~io.stall & expt, CSR.mstatus.next, BitsSignal.concat([CSR.mstatus.next.as_bits()[6:], CSR.mstatus.next.as_bits()[:3], CSR.PRV_M, Bits(1)(0)]))
+        CSR.mstatus.next   = Mux(~io.stall & is_E_ret, CSR.mstatus.next, BitsSignal.concat([CSR.mstatus.next.as_bits()[6:], CSR.PRV_U, Bits(1)(1), CSR.mstatus.next.as_bits()[3:6]]))
 
 
         reg_assign_dict = {}

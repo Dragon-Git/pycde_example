@@ -1,16 +1,17 @@
-from pycde import (System, Module, Clock, Reset, InputChannel, OutputChannel, Input, Output, generator)
-from pycde.types import Bits, SInt, UInt, Channel  # noqa: F401
-from pycde.constructs import ControlReg, NamedWire, Reg, Wire, Mux  # noqa: F401
+from pycde import Clock, Input, InputChannel, Module, Output, OutputChannel, Reset, System, generator
+from pycde.constructs import ControlReg, Mux, NamedWire, Reg, Wire  # noqa: F401
+from pycde.types import Bits, Channel, SInt, UInt  # noqa: F401
 
 from .alu import ALU
 from .bru import BRU
+from .cache import ReqType
+from .const import XLEN, PC_const
 from .control import ctrl_sig
 from .csr_gen import CSRGen
 from .immgen import Immgen
 from .instructions import RV32I
 from .regfile import Regfile, WriteType
-from .const import XLEN, PC_const
-from .cache import ReqType
+
 
 class Datapath(Module):
     clk = Clock()
@@ -50,7 +51,7 @@ class Datapath(Module):
         npc = 0
         pc.assign(npc)
         insn = Mux(started | io.ctrl.inst_kill | bru_taken | csr_expt, iresp_data, RV32I().NOP)
-        io.ireq, ready = Channel(ReqType).wrap(ReqType({"addr": npc, "data": 0, "mask": 0, "abort": 0}), ~stall)
+        io.ireq, _ready = Channel(ReqType).wrap(ReqType({"addr": npc, "data": 0, "mask": 0, "abort": 0}), ~stall)
 
         # Pipelining 1
         pc = Bits(32)(0xbad)

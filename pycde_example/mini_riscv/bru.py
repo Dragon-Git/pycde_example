@@ -1,8 +1,9 @@
-from pycde import (System, Module, Input, Output, generator)
-from pycde.types import Bits, SInt
+from pycde import Input, Module, Output, System, generator
 from pycde.constructs import Mux
+from pycde.types import Bits, SInt
 
 from .const import XLEN
+
 
 class BRU(Module):
     rs1 = Input(SInt(XLEN))

@@ -1,11 +1,12 @@
-from pycde import (System, Module, Clock, Reset, InputChannel, OutputChannel, Input, generator, types)  # noqa: F401
-from pycde.types import Bits
+from pycde import Clock, Input, InputChannel, Module, OutputChannel, Reset, System, generator, types  # noqa: F401
 from pycde.constructs import NamedWire
+from pycde.types import Bits
 
-from .control import Control
-from .datapath import Datapath
 from .cache import ReqType
 from .const import XLEN
+from .control import Control
+from .datapath import Datapath
+
 
 class Core(Module):
     clk = Clock()
