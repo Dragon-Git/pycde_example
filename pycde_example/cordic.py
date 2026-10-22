@@ -81,6 +81,14 @@ def Cordic(width: int = 32,
     # width of the iteration counter (used by the loop architectures)
     cnt_width = max(1, (iterations - 1).bit_length())
 
+    def mux(sel, when_true, when_false):
+        """A two input multiplexer.
+
+        ``pycde.constructs.Mux(sel, a, b)`` returns ``b`` when ``sel`` is
+        high, this helper uses the intuitive order.
+        """
+        return Mux(sel, when_false, when_true)
+
     def iteration(x, y, z, shift, atan_value) -> tuple:
         """One CORDIC iteration.
 
@@ -105,16 +113,16 @@ def Cordic(width: int = 32,
             # that the accumulated rotation ends up being z and z itself is
             # driven towards zero.
             q = z.as_bits()[width - 1]
-            x_next = Mux(q, x_minus, x_plus)
-            y_next = Mux(q, y_plus, y_minus)
-            z_next = Mux(q, z_minus, z_plus)
+            x_next = mux(q, x_plus, x_minus)
+            y_next = mux(q, y_minus, y_plus)
+            z_next = mux(q, z_plus, z_minus)
         else:
             # Vectoring rotates the vector onto the x axis: while y is
             # positive the vector is rotated clockwise.
             q = y.as_bits()[width - 1]
-            x_next = Mux(q, x_plus, x_minus)
-            y_next = Mux(q, y_minus, y_plus)
-            z_next = Mux(q, z_plus, z_minus)
+            x_next = mux(q, x_minus, x_plus)
+            y_next = mux(q, y_plus, y_minus)
+            z_next = mux(q, z_minus, z_plus)
 
         return x_next, y_next, z_next
 
@@ -192,17 +200,17 @@ def Cordic(width: int = 32,
             not_last = last ^ one
 
             if arch == "loop":
-                x_next = Mux(accept, x_in, Mux(busy, x_stage, x_state))
-                y_next = Mux(accept, y_in, Mux(busy, y_stage, y_state))
-                z_next = Mux(accept, z_in, Mux(busy, z_stage, z_state))
-                cnt_next = Mux(accept, UInt(cnt_width)(0),
-                               Mux(busy & not_last,
+                x_next = mux(accept, x_in, mux(busy, x_stage, x_state))
+                y_next = mux(accept, y_in, mux(busy, y_stage, y_state))
+                z_next = mux(accept, z_in, mux(busy, z_stage, z_state))
+                cnt_next = mux(accept, UInt(cnt_width)(0),
+                               mux(busy & not_last,
                                    (cnt + UInt(cnt_width)(1)).as_uint(cnt_width),
                                    cnt))
-                busy_next = Mux(accept, one, Mux(busy & not_last, one, zero))
-                done_next = Mux(accept, zero,
-                               Mux(busy & last, one,
-                                   Mux(done & io.out_ready, zero, done)))
+                busy_next = mux(accept, one, mux(busy & not_last, one, zero))
+                done_next = mux(accept, zero,
+                               mux(busy & last, one,
+                                   mux(done & io.out_ready, zero, done)))
             else:
                 # "loop_pipelined": the single iteration is registered as
                 # well, so every iteration takes two cycles (compute, commit).
@@ -212,22 +220,22 @@ def Cordic(width: int = 32,
                 phase = Reg(Bits(1), io.clk, io.rst, 0, name="phase")
                 phase0 = phase ^ one
 
-                x_next = Mux(accept, x_in, Mux(busy & phase, x_pipe, x_state))
-                y_next = Mux(accept, y_in, Mux(busy & phase, y_pipe, y_state))
-                z_next = Mux(accept, z_in, Mux(busy & phase, z_pipe, z_state))
-                x_pipe_next = Mux(busy & phase0, x_stage, x_pipe)
-                y_pipe_next = Mux(busy & phase0, y_stage, y_pipe)
-                z_pipe_next = Mux(busy & phase0, z_stage, z_pipe)
-                cnt_next = Mux(accept, UInt(cnt_width)(0),
-                               Mux(busy & phase & not_last,
+                x_next = mux(accept, x_in, mux(busy & phase, x_pipe, x_state))
+                y_next = mux(accept, y_in, mux(busy & phase, y_pipe, y_state))
+                z_next = mux(accept, z_in, mux(busy & phase, z_pipe, z_state))
+                x_pipe_next = mux(busy & phase0, x_stage, x_pipe)
+                y_pipe_next = mux(busy & phase0, y_stage, y_pipe)
+                z_pipe_next = mux(busy & phase0, z_stage, z_pipe)
+                cnt_next = mux(accept, UInt(cnt_width)(0),
+                               mux(busy & phase & not_last,
                                    (cnt + UInt(cnt_width)(1)).as_uint(cnt_width),
                                    cnt))
-                phase_next = Mux(accept, zero, Mux(busy, phase ^ one, phase))
-                busy_next = Mux(accept, one,
-                                Mux(busy & ((phase & last) ^ one), one, zero))
-                done_next = Mux(accept, zero,
-                               Mux(busy & phase & last, one,
-                                   Mux(done & io.out_ready, zero, done)))
+                phase_next = mux(accept, zero, mux(busy, phase ^ one, phase))
+                busy_next = mux(accept, one,
+                                mux(busy & ((phase & last) ^ one), one, zero))
+                done_next = mux(accept, zero,
+                               mux(busy & phase & last, one,
+                                   mux(done & io.out_ready, zero, done)))
                 x_pipe.assign(x_pipe_next)
                 y_pipe.assign(y_pipe_next)
                 z_pipe.assign(z_pipe_next)

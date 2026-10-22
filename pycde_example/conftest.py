@@ -50,19 +50,18 @@ def pytest_sessionstart(session):
 @pytest.fixture(scope="module", autouse=True)
 def setup(request):
     module_name = request.module.__name__
-    if module_name not in RTL_SPECS:
-        # not a cocotb test module (the pure python unit tests for example)
-        return
-    rtl_name = RTL_SPECS[module_name][1]
-    runner = get_runner("verilator")
-    runner.test(
-        hdl_toplevel=rtl_name,
-        hdl_toplevel_lang="verilog",
-        test_module=module_name,
-        build_dir=build_dir(module_name),
-        test_dir=build_dir(module_name),
-        test_args=[]
-    )
+    if module_name in RTL_SPECS:
+        rtl_name = RTL_SPECS[module_name][1]
+        runner = get_runner("verilator")
+        runner.test(
+            hdl_toplevel=rtl_name,
+            hdl_toplevel_lang="verilog",
+            test_module=module_name,
+            build_dir=build_dir(module_name),
+            test_dir=build_dir(module_name),
+            test_args=[]
+        )
+    yield
 
 def pytest_sessionfinish(session, exitstatus):
     if not hasattr(session.config, "workerinput"):  # 仅在主进程执行
