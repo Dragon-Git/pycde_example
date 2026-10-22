@@ -10,7 +10,7 @@ The list below is the single source of truth for
 from __future__ import annotations
 
 ARCHES = ("memory_based", "pipelined")
-PIPELINE_STYLES = ("sdf", "mdc", "sdc", "mdf")
+PIPELINE_STYLES = ("unrolled", "sdf", "sdc", "mdf")
 TWIDDLE_MODES = ("rom", "cordic", "hybrid", "no_mem")
 DATA_FORMATS = ("fixed", "block_float")
 SCALINGS = ("stage", "none")
@@ -24,7 +24,7 @@ _ARCH_TAG = {
 
 _PIPELINE_TAG = {
     "sdf": "Sdf",
-    "mdc": "Mdc",
+    "unrolled": "Unrolled",
     "sdc": "Sdc",
     "mdf": "Mdf",
 }
@@ -135,9 +135,9 @@ FFT_CONFIGS: list[dict] = [
     _config(width=16, points=4, ordering="dit"),
     # the pipelined (unrolled) architecture
     _config(width=16, points=8, ordering="dit", eval_mode="pipelined",
-            pipeline_style="mdc", stages=1),
+            pipeline_style="unrolled", stages=1),
     _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
-            pipeline_style="mdc", stages=2),
+            pipeline_style="unrolled", stages=2),
     # the single path delay feedback architecture
     _config(width=16, points=8, ordering="dit", eval_mode="pipelined",
             pipeline_style="sdf", stages=1),

@@ -34,8 +34,9 @@ The configuration of the transform:
 
 ``pipeline_style``
     The sub topology of the pipelined architecture: ``"sdf"`` (single path
-    delay feedback), ``"mdc"`` (multi path delay commutator), ``"sdc"``
-    (single path delay commutator) or ``"mdf"`` (multi path delay feedback).
+    delay feedback), ``"sdc"`` (single path delay commutator), ``"unrolled"``
+    (every stage with its own butterflies, the transform fully unrolled) or
+    ``"mdf"`` (multi path delay feedback).
     The single path delay feedback folds the transform into a chain of
     stages which is fed back into itself (see :mod:`fft_sdf`), the multi path
     one unrolls it (see :mod:`fft_pipelined`).
@@ -159,11 +160,14 @@ def Fft(width: int = 16,
     if data_format == "block_float":
         raise NotImplementedError("the block floating point format is not "
                                   "implemented yet")
-    if eval_mode == "pipelined" and pipeline_style not in ("mdc", "sdf", "sdc"):
-        raise NotImplementedError("only the multi path ('mdc'), the single "
+    if eval_mode == "pipelined" and pipeline_style not in ("unrolled", "sdf",
+                                                           "sdc"):
+        raise NotImplementedError("only the unrolled ('unrolled'), the single "
                                   "path delay feedback ('sdf') and the single "
                                   "path delay commutator ('sdc') pipelined "
-                                  "architectures are implemented so far")
+                                  "architectures are implemented so far; the "
+                                  "delay commutator and the multi path delay "
+                                  "feedback are not")
     if eval_mode == "pipelined" and inverse:
         raise NotImplementedError("the inverse transform is only implemented "
                                   "for the memory based architecture")

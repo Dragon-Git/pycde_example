@@ -7,7 +7,7 @@ twiddle factors from the rom.
 from .cocotb_runner import run_cocotb
 from .fft_tb import make_fft_tests
 
-params = {'width': 16, 'points': 8, 'radices': '2', 'eval_mode': 'pipelined', 'pipeline_style': 'mdc', 'twiddle_mode': 'rom', 'data_format': 'fixed', 'scaling': 'stage', 'stages': 1, 'inverse': False, 'ordering': 'dit', 'parallel': 1}
+params = {'width': 16, 'points': 8, 'radices': '2', 'eval_mode': 'pipelined', 'pipeline_style': 'unrolled', 'twiddle_mode': 'rom', 'data_format': 'fixed', 'scaling': 'stage', 'stages': 1, 'inverse': False, 'ordering': 'dit', 'parallel': 1}
 
 fft_result, fft_handshake = make_fft_tests(**params)
 

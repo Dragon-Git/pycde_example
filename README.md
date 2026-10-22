@@ -93,7 +93,7 @@ according to the configuration:
 | `points` | a power of two | the number of points of the transform |
 | `radices` | `"2"` | the radices of the transform |
 | `eval_mode` | `"memory_based"`, `"pipelined"` | `"memory_based"`: the transform is computed iteratively, the intermediate results stay in the frame memory (`log2(points)` passes of `points / 2` butterflies).  `"pipelined"`: the transform is unrolled, every radix-2 stage has its own butterflies |
-| `pipeline_style` | `"sdf"`, `"mdc"`, `"sdc"`, `"mdf"` | the sub topology of the pipelined architecture: the multi path (`"mdc"`) one unrolls the transform, the single path delay feedback (`"sdf"`) and the single path delay commutator (`"sdc"`) fold it into a chain of stages |
+| `pipeline_style` | `"unrolled"`, `"sdf"`, `"sdc"`, `"mdf"` | the sub topology of the pipelined architecture: `"unrolled"` gives every stage its own butterflies and unrolls the transform, the single path delay feedback (`"sdf"`) and the single path delay commutator (`"sdc"`) fold it into a chain of stages; `"mdf"` (multi path delay feedback) is not implemented |
 | `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced (the memory based architecture only, the pipelined ones use constant factors): a table, a CORDIC, a coarse CORDIC with a correction table, or - not implemented - no memory at all |
 | `data_format` | `"fixed"`, `"block_float"` | the number format of the datapath |
 | `scaling` | `"stage"`, `"none"` | the scaling of the stages: `"stage"` halves the operands of every butterfly, so that the magnitude of the datapath does not grow from stage to stage |
@@ -136,6 +136,11 @@ The pipelined architecture unrolls the transform: every radix-2 stage has its
 own butterflies and the stages are separated by `stages` registers.  It needs
 `log2(points)` stages with their butterflies and trades the area for the
 throughput, it is only practical for a small number of points.
+
+The unrolled architecture (`pipeline_style="unrolled"`) gives every radix-2
+stage its own butterflies and separates the stages with `stages` registers; the
+whole transform is unrolled, which costs the area of `log2(points)` butterflies
+and works well for a small number of points.
 
 The single path delay feedback architecture (`pipeline_style="sdf"`) folds the
 transform into a chain of `log2(points)` stages: every stage owns a delay line
