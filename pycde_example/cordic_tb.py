@@ -80,8 +80,12 @@ def read_outputs(dut, width: int) -> tuple[int, int, int]:
 
 
 async def reset(dut) -> None:
-    """Apply the reset and release it."""
-    dut.rst.value = 0
+    """Apply the reset and release it.
+
+    The reset of the generated RTL is active high ("if (rst)" in the
+    always_ff block).
+    """
+    dut.rst.value = 1
     dut.in_valid.value = 0
     dut.out_ready.value = 1
     dut.x_i.value = 0
@@ -89,7 +93,7 @@ async def reset(dut) -> None:
     dut.z_i.value = 0
     await RisingEdge(dut.clk)
     await Timer(1, units="ps")
-    dut.rst.value = 1
+    dut.rst.value = 0
     await RisingEdge(dut.clk)
     await Timer(1, units="ps")
 
