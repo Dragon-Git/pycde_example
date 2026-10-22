@@ -136,8 +136,10 @@ def Twiddle(width: int = 16, points: int = 16, mode: str = "rom",
                                      out_ready=io.out_ready)
 
                 # the correction table, read with the angle left over
-                cos_values = [SInt(inner)(re) for re, _ in hybrid_table]
-                sin_values = [SInt(inner)(im) for _, im in hybrid_table]
+                # the table is of the inner width, whatever the datapath is
+                correction = hybrid_table(width)
+                cos_values = [SInt(inner)(re) for re, _ in correction]
+                sin_values = [SInt(inner)(im) for _, im in correction]
                 offset = (rotator.z_o.as_sint(inner)
                           + SInt(inner)(1 << (HYBRID_TABLE_BITS - 1))).as_sint(inner)
                 cos = cos_values[0]
