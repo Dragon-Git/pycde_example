@@ -158,14 +158,15 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # a gap.  `cnt` is the position inside the frame; it drives the
             # commutators and the indices of the twiddle factors.
             cnt = Reg(UInt(count_width), io.clk, io.rst, 0, name="cnt")
-            # the index of the completed window, its lowest bit is the bank
-            window = Reg(Bits(1), io.clk, io.rst, 0, name="window")
+            # the bank a window is written into; the other one is read out
+            write_bank = Reg(Bits(1), io.clk, io.rst, 0, name="write_bank")
+            # a complete spectrum is waiting to be sent, and its position
+            sending = Reg(Bits(1), io.clk, io.rst, 0, name="sending")
+            out_count = Reg(UInt(count_width), io.clk, io.rst, 0,
+                            name="out_count")
             # the number of cycles the chain ran, saturating: the first window
             # is only meaningful when the chain is filled
             fill = Reg(UInt(count_width), io.clk, io.rst, 0, name="fill")
-            # set when the first window was completed: from then on the bank
-            # of the previous window holds a complete spectrum
-            started = Reg(Bits(1), io.clk, io.rst, 0, name="started")
             # The chain only runs once the first sample arrived.  The frame
             # grid is anchored at the first sample, so the idle cycles before
             # it must not advance the counters.
@@ -178,8 +179,11 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # sample is accepted on every cycle as well.  It freezes when the
             # consumer of the spectrum is not ready, so that no result is
             # lost, and it does not run before the first sample arrived.
-            out_held = started & (~io.out_ready)
-            # the data path moves on every cycle unless the consumer stalls it
+            # The chain freezes while a spectrum waits for a consumer which is
+            # not ready: nothing is captured then, so no window is lost.  It
+            # runs on every other cycle, which is what keeps the frames back to
+            # back.
+            out_held = sending & (~io.out_ready)
             advance = ~out_held
             # the frame grid, however, is anchored at the first sample: the
             # counters must not move before it arrives, or the idle cycles
@@ -324,8 +328,8 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # bank - the one of the previous window - is read out at the same
             # position.  Both are aligned with the window, so no handshake is
             # needed between the capture and the readout.
+            # the chain has to be filled before a window is meaningful
             filled = (fill == UInt(count_width)(points - 1)).as_bits()
-            write_bank = window
             read_bank = ~write_bank
             buf_re = [[], []]
             buf_im = [[], []]
@@ -349,10 +353,10 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
                         for b in range(2)]
             array_im = [ArraySignal.create([r.as_bits() for r in buf_im[b]])
                         for b in range(2)]
-            out_real = mux(read_bank, array_re[1][rotated_count.as_bits()],
-                           array_re[0][rotated_count.as_bits()])
-            out_imag = mux(read_bank, array_im[1][rotated_count.as_bits()],
-                           array_im[0][rotated_count.as_bits()])
+            out_real = mux(read_bank, array_re[1][out_count.as_bits()],
+                           array_re[0][out_count.as_bits()])
+            out_imag = mux(read_bank, array_im[1][out_count.as_bits()],
+                           array_im[0][out_count.as_bits()])
 
             # ------------------------------------------------------------------
             # the control flow
@@ -360,30 +364,44 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             last_input = (cnt == UInt(count_width)(points - 1)).as_bits()
             last_in_window = (rotated_count
                               == UInt(count_width)(points - 1)).as_bits()
-            # the counters only move while the chain advances
+            last_output = (out_count == UInt(count_width)(points - 1)).as_bits()
+            # the spectrum of the window which just completed was sent
+            spectrum_sent = sending & last_output & io.out_ready
+            # a window completed: its bank becomes the one to send, and the
+            # chain starts writing into the other one
+            window_done = counting & filled & last_in_window
+
             cnt_next = mux(counting,
                            mux(last_input, UInt(count_width)(0),
                                (cnt + UInt(count_width)(1)).as_uint(
                                    count_width)),
                            cnt)
-            # the window index counts the completed windows, its lowest bit is
-            # the bank
-            window_next = mux(counting & filled & last_in_window, ~window,
-                              window)
             fill_next = mux(counting,
                             mux(filled, fill,
                                 (fill + UInt(count_width)(1)).as_uint(
                                     count_width)),
                             fill)
-            started_next = mux(counting & filled & last_in_window, Bits(1)(1),
-                               started)
-            running_next = mux(io.in_valid, Bits(1)(1), running)
+            write_bank_next = mux(window_done, ~write_bank, write_bank)
+
+            # A completed window starts being sent.  This takes precedence
+            # over the end of the previous spectrum, which happens in the same
+            # cycle: the last sample of a spectrum is taken exactly when the
+            # next window completes, and clearing the flag afterwards would
+            # drop the new spectrum.
+            sending_next = mux(spectrum_sent, Bits(1)(0), sending)
+            sending_next = mux(window_done, Bits(1)(1), sending_next)
+            out_count_next = mux(sending & io.out_ready,
+                                 (out_count + UInt(count_width)(1)).as_uint(
+                                     count_width),
+                                 out_count)
+            out_count_next = mux(window_done, UInt(count_width)(0),
+                                 out_count_next)
 
             cnt.assign(cnt_next)
-            window.assign(window_next)
             fill.assign(fill_next)
-            started.assign(started_next)
-            running.assign(running_next)
+            write_bank.assign(write_bank_next)
+            sending.assign(sending_next)
+            out_count.assign(out_count_next)
 
             # ------------------------------------------------------------------
             # the interface
@@ -392,10 +410,7 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # cycle: the frames have to be supplied back to back.
             # the pipeline accepts a sample while it runs
             io.in_ready = advance
-            # the spectrum of the previous window is complete from the end of
-            # the first window on (the window bit alone is not enough: it
-            # selects the bank, it does not mark the first window)
-            io.out_valid = filled & started
+            io.out_valid = sending
             io.out_real = out_real
             io.out_imag = out_imag
 

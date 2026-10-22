@@ -265,10 +265,14 @@ def FftSdf(width: int = 16, points: int = 16, ordering: str = "dif",
                 # swap with a negation: the table cannot hold +1.0, so
                 # multiplying with its first entry would lose a unit of the
                 # last bit in every stage which uses W**0.
-                no_twiddle = (index == UInt(phase_width)(0)).as_bits()
-                # the comparison is made in the width of the frame counter:
-                # points / 4 does not fit in the width of a late stage
-                quarter = (index.as_uint(count_width)
+                # `index` is the position inside the window; the exponent of
+                # the factor is that position times the step of the stage, which
+                # is what the table lookup uses.  The trivial ones have to be
+                # compared as exponents.
+                exponent = (index.as_uint(count_width)
+                            * UInt(count_width)(step_size)).as_uint(count_width)
+                no_twiddle = (exponent == UInt(count_width)(0)).as_bits()
+                quarter = (exponent
                            == UInt(count_width)(points // 4)).as_bits()
                 rotated_re = mux(no_twiddle, rotate_re,
                                  mux(quarter, rotate_im, multiplier.re.as_sint()))
