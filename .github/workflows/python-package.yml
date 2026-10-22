@@ -41,6 +41,11 @@ jobs:
         # stop the build if there are Python syntax errors or undefined names
         ruff check .
 
+    - name: Check the RTL sources
+      run: |
+        # catch the mistakes which otherwise surface only at elaboration
+        python tools/check_rtl.py
+
     - name: Generate RTL
       run: |
         mkdir build

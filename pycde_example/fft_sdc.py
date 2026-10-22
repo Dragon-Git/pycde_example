@@ -397,7 +397,11 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             out_count_next = mux(window_done, UInt(count_width)(0),
                                  out_count_next)
 
+            # the chain starts on the first sample and never stops
+            running_next = mux(io.in_valid, Bits(1)(1), running)
+
             cnt.assign(cnt_next)
+            running.assign(running_next)
             fill.assign(fill_next)
             write_bank.assign(write_bank_next)
             sending.assign(sending_next)
