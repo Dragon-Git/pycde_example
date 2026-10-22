@@ -72,10 +72,82 @@ python -m pycde_example.cordic
 pytest pycde_example -n auto
 ```
 
+## Configurable FFT
+
+[fft](pycde_example/fft.py) implements a radix-2 FFT.  The transform is
+split into three independent submodules which the top level instantiates
+according to the configuration:
+
+| module | description |
+|--------|-------------|
+| [fft_butterfly](pycde_example/fft_butterfly.py) | the butterfly: the complex multiplier and the adders |
+| [fft_twiddle](pycde_example/fft_twiddle.py) | the twiddle factor generator: a read only memory or a CORDIC rotator |
+| [fft_memory](pycde_example/fft_memory.py) | the in place frame memory with two write and three read ports |
+
+| parameter | values | meaning |
+|-----------|--------|---------|
+| `width` | any width >= 8 | the width of the two's complement datapath, a real number `v` is represented by `round(v * 2**(width - 1))` |
+| `points` | a power of two | the number of points of the transform |
+| `radices` | `"2"` | the radices of the transform |
+| `eval_mode` | `"memory_based"`, `"pipelined"` | `"memory_based"`: the transform is computed iteratively, the intermediate results stay in the frame memory (`log2(points)` passes of `points / 2` butterflies).  `"pipelined"`: the transform is unrolled, every radix-2 stage has its own butterflies |
+| `pipeline_style` | `"sdf"`, `"mdc"`, `"sdc"`, `"mdf"` | the sub topology of the pipelined architecture, only the multi path (`"mdc"`) one is implemented |
+| `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced |
+| `data_format` | `"fixed"`, `"block_float"` | the number format of the datapath |
+| `scaling` | `"stage"`, `"none"` | the scaling of the stages: `"stage"` halves the operands of every butterfly, so that the magnitude of the datapath does not grow from stage to stage |
+| `stages` | any number >= 0 | the number of pipeline stages: the number of registers between two radix-2 stages of the pipelined architecture |
+| `inverse` | `False`, `True` | the inverse transform (the twiddle factors, the input and the output are conjugated) |
+| `ordering` | `"dit"`, `"dif"` | decimation in time (the input is read bit reversed) or decimation in frequency (the output is written bit reversed) |
+| `parallel` | `1` | the number of butterflies which are computed in parallel |
+
+The module is created with:
+```python
+from pycde_example.fft import Fft
+
+fft = Fft(width=16, points=64, radices="2", eval_mode="memory_based",
+          twiddle_mode="rom", ordering="dit")
+```
+
+The interface is frame based: the transform accepts `points` samples and
+produces `points` samples, the samples of a frame are counted.
+
+Generate the SystemVerilog of every configuration listed in
+[fft_configs.py](pycde_example/fft_configs.py) with:
+```bash
+mkdir build
+python -m pycde_example.fft
+```
+
+The tests compare the generated RTL against the bit exact software model in
+[fft_model.py](pycde_example/fft_model.py), which is verified against a
+floating point discrete Fourier transform.  The twiddle factor generator has
+a unit test of its own ([test_fft_twiddle.py](pycde_example/test_fft_twiddle.py)),
+the generator is instantiated as a top level module for it.
+
+```bash
+mkdir build
+python -m pycde_example.fft
+pytest pycde_example -n auto
+```
+
+The pipelined architecture unrolls the transform: every radix-2 stage has its
+own butterflies and the stages are separated by `stages` registers.  It needs
+`log2(points)` stages with their butterflies and trades the area for the
+throughput, it is only practical for a small number of points.
+
+Not implemented yet: the single path delay feedback, the single path delay
+commutator and the multi path delay feedback sub topologies of the pipelined
+architecture (only the multi path one is implemented), the radix 4 (and larger)
+butterflies, the mixed radix and split radix transforms, the block floating
+point format and the twiddle factors without a memory
+(`twiddle_mode="no_mem"`).  The parameters are already part of the interface,
+they raise a `NotImplementedError` for the configurations which are not
+supported yet.
+
 ## Example List  
 
 ### common_ip
 - [cordic](pycde_example/cordic.py) 
+- [fft](pycde_example/fft.py)
 - [counter](pycde_example/counter.py) 
 - [fir_filter](pycde_example/fir_filter.py) 
 - [hwarith](pycde_example/hwarith.py) 
