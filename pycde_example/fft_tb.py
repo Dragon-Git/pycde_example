@@ -117,18 +117,28 @@ async def receive_frame(dut, points: int, width: int,
 
 async def collect_with_backpressure(dut, points: int, width: int,
                                    spectra: int = 1) -> list[list[tuple[int, int]]]:
-    """Collect spectra while `out_ready` is toggled.
+    """Collect spectra while the consumer stalls for a while.
 
     A result must not be lost when the consumer is not ready: the ready/valid
-    handshake is the only guarantee that a sample was taken.
+    handshake is the only guarantee that a sample was taken.  The stalls are
+    bounded, so that a design which simply stops making progress cannot hide
+    behind the timeout - it would fail the assertion instead.
     """
     results = []
     current = []
-    for cycle in range(40000):
-        # the consumer is ready in two of three cycles
-        dut.out_ready.value = 0 if cycle % 3 == 0 else 1
+    trace = []
+    stall_for = 0
+    for cycle in range(6000):
+        if stall_for > 0:
+            dut.out_ready.value = 0
+            stall_for -= 1
+        else:
+            dut.out_ready.value = 1
         await RisingEdge(dut.clk)
         await Timer(1, units="ps")
+        # stall for a few cycles in the middle of every window
+        if cycle % 7 == 3:
+            stall_for = 4
         if int(dut.out_valid.value) == 1 and int(dut.out_ready.value) == 1:
             current.append((to_signed(int(dut.out_real.value), width),
                             to_signed(int(dut.out_imag.value), width)))
@@ -138,7 +148,15 @@ async def collect_with_backpressure(dut, points: int, width: int,
                 if len(results) == spectra:
                     dut.out_ready.value = 1
                     return results
-    raise AssertionError("the FFT did not produce a result under backpressure")
+        elif len(results) < spectra:
+            trace.append((cycle, int(dut.out_valid.value),
+                          int(dut.out_ready.value),
+                          int(dut.out_real.value)))
+            if len(trace) > 40:
+                trace.pop(0)
+    raise AssertionError("the FFT did not produce a result under backpressure,"
+                         f" collected {len(results)} of {spectra} spectra,"
+                         f" last cycles (cycle, valid, ready, real): {trace[-12:]}")
 
 
 def make_streaming_fft_tests(**params):
