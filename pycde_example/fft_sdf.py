@@ -306,10 +306,12 @@ def FftSdf(width: int = 16, points: int = 16, ordering: str = "dif",
                     stage_out_im = mux(load, delayed_im,
                                       butterfly.sum_im.as_sint())
                 else:
-                    stage_out_re = mux(load, multiplier.re.as_sint(),
-                                      butterfly.sum_re.as_sint())
-                    stage_out_im = mux(load, multiplier.im.as_sint(),
-                                      butterfly.sum_im.as_sint())
+                    # the rotated value, not the raw product: the trivial
+                    # factors are bypassed above
+                    stage_out_re = mux(load, rotated_re,
+                                       butterfly.sum_re.as_sint())
+                    stage_out_im = mux(load, rotated_im,
+                                       butterfly.sum_im.as_sint())
 
                 # the difference of the butterfly is fed back into the delay
                 # line of the stage

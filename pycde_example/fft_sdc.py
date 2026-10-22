@@ -179,11 +179,13 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # sample is accepted on every cycle as well.  It freezes when the
             # consumer of the spectrum is not ready, so that no result is
             # lost, and it does not run before the first sample arrived.
-            # The chain freezes while a spectrum waits for a consumer which is
-            # not ready: nothing is captured then, so no window is lost.  It
-            # runs on every other cycle, which is what keeps the frames back to
-            # back.
-            out_held = sending & (~io.out_ready)
+            # The chain alternates between two phases: it fills a window, then
+            # it hands that window over while standing still.  Standing still
+            # until the spectrum is taken is what makes the handshake correct
+            # for a consumer with any timing: while the chain moves it also
+            # writes, and writing into the bank which is being read would
+            # destroy it.
+            out_held = sending
             advance = ~out_held
             # the frame grid, however, is anchored at the first sample: the
             # counters must not move before it arrives, or the idle cycles
@@ -394,7 +396,9 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
                                  (out_count + UInt(count_width)(1)).as_uint(
                                      count_width),
                                  out_count)
-            out_count_next = mux(window_done, UInt(count_width)(0),
+            # after the last sample the position starts over; the wrap of the
+            # counter width would do the same, but only by accident
+            out_count_next = mux(spectrum_sent, UInt(count_width)(0),
                                  out_count_next)
 
             # the chain starts on the first sample and never stops
