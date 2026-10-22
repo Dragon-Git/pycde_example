@@ -53,3 +53,6 @@ CORDIC_CONFIGS: list[dict[str, object]] = [
 for _cfg in CORDIC_CONFIGS:
     _cfg["name"] = cordic_name(_cfg["arch"], _cfg["mode"], _cfg["width"], _cfg["iterations"])
     _cfg["test_module"] = test_module_name(_cfg["arch"], _cfg["mode"])
+    # every configuration is built into its own system (a PyCDE system may
+    # only have a single top level module)
+    _cfg["rtl"] = f"build/ip_cordic_lib/{_cfg['name']}/hw/Cordic.sv"

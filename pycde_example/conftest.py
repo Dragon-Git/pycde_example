@@ -14,7 +14,7 @@ RTL_SPECS = {
     "pycde_example.test_ahb_to_ram": ("build/ip_amba_lib/hw/AHBRam.sv", "AHBRam"),
 }
 for _cfg in CORDIC_CONFIGS:
-    RTL_SPECS[_cfg["test_module"]] = ("build/ip_cordic_lib/hw/Cordic.sv", _cfg["name"])
+    RTL_SPECS[_cfg["test_module"]] = (_cfg["rtl"], _cfg["name"])
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

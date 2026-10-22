@@ -44,6 +44,8 @@ Running this file generates the SystemVerilog of every configuration listed in
 
 from __future__ import annotations
 
+import os
+
 from pycde import Clock, Input, Module, Output, Reset, System, generator, modparams
 from pycde.constructs import Mux, Reg, Wire
 from pycde.dialects import comb
@@ -248,15 +250,23 @@ def Cordic(width: int = 32,
     return Cordic
 
 
-def build_cordic_system(configs=None, name: str = "ip_cordic_lib",
-                         output_directory: str = "build/ip_cordic_lib"):
-    """Generate the SystemVerilog of the given CORDIC configurations."""
+def build_cordic_system(configs=None, output_directory: str = "build/ip_cordic_lib"):
+    """Generate the SystemVerilog of the given CORDIC configurations.
+
+    A PyCDE system may only have a single top level module (the ESI manifest
+    pass looks up exactly one top module), so every configuration is built
+    into its own system and its own directory.
+    """
     configs = CORDIC_CONFIGS if configs is None else configs
-    modules = [Cordic(width=cfg["width"], iterations=cfg["iterations"],
-                      mode=cfg["mode"], arch=cfg["arch"]) for cfg in configs]
-    system = System(modules, name=name, output_directory=output_directory)
-    system.compile()
-    return system
+    systems = []
+    for cfg in configs:
+        module = Cordic(width=cfg["width"], iterations=cfg["iterations"],
+                        mode=cfg["mode"], arch=cfg["arch"])
+        system = System([module], name=cfg["name"],
+                        output_directory=os.path.join(output_directory, cfg["name"]))
+        system.compile()
+        systems.append(system)
+    return systems
 
 
 if __name__ == "__main__":
