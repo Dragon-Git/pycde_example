@@ -177,9 +177,10 @@ def make_streaming_fft_tests(**params):
         await reset(dut)
 
         frames = test_frames(points, width)
+        # the collector runs while the frames are streamed: the spectra appear
+        # after the latency of the chain
         collector = cocotb.start_soon(collect_spectra(dut, len(frames)))
-        await cocotb.triggers.First(
-            stream_frames(dut, frames), cocotb.triggers.Timer(400, units="us"))
+        await stream_frames(dut, frames)
         results = await collector
 
         for frame, got in zip(frames, results):
@@ -198,8 +199,7 @@ def make_streaming_fft_tests(**params):
 
         frames = test_frames(points, width)[:2]
         collector = cocotb.start_soon(collect_spectra(dut, len(frames)))
-        await cocotb.triggers.First(
-            stream_frames(dut, frames), cocotb.triggers.Timer(400, units="us"))
+        await stream_frames(dut, frames)
         results = await collector
 
         for frame, got in zip(frames, results):

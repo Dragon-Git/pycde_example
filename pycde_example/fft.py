@@ -167,6 +167,18 @@ def Fft(width: int = 16,
     if eval_mode == "pipelined" and inverse:
         raise NotImplementedError("the inverse transform is only implemented "
                                   "for the memory based architecture")
+    if eval_mode == "pipelined" and pipeline_style == "sdc":
+        # the delay commutator is a decimation in frequency pipeline: it reads
+        # the samples in the natural order, the twiddle factors of the stages
+        # are derived from that
+        if ordering != "dif":
+            raise NotImplementedError("the delay commutator architecture is "
+                                      "the decimation in frequency pipeline, "
+                                      "it needs ordering='dif'")
+        if stages != 1:
+            raise NotImplementedError("the delay commutator architecture has "
+                                      "a fixed schedule, the parameter stages "
+                                      "does not apply to it")
     if stages < 0:
         raise ValueError(f"stages must not be negative, got {stages}")
     if parallel != 1:

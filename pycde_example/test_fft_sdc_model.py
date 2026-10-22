@@ -83,6 +83,15 @@ def test_sdc_matches_the_transform(width, points):
         assert max_deviation(got, expected) <= 2
 
 
+@pytest.mark.parametrize("width,points", [(24, 8), (24, 16)])
+def test_sdc_without_scaling(width, points):
+    """The stages can be left unscaled (the datapath has to be wide enough)."""
+    samples = random_samples(points, width, seed=points, amplitude=0.02)
+    got = sdc(samples, width, points, scale=False)
+    expected = fft(samples, width, points, dit=False, scale=False)
+    assert max_deviation(got, expected) <= 2
+
+
 def test_sdc_impulse_response():
     """An impulse in the input is flat in the output."""
     width, points = 16, 16

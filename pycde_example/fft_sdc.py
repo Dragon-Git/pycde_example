@@ -74,47 +74,37 @@ SCALINGS = ("stage", "none")
 
 
 @modparams
-def Commutator(width: int = 16, period: int = 4):
-    """The commutator of a stage: two multiplexers and their selection.
+def CommutatorSchedule(period: int = 4):
+    """The control of a commutator: the selection of its two multiplexers.
 
-    A commutator is a multiplexer pair driven by a periodic selection.  In the
-    first half of its window it passes the sum through and hands the delayed
-    difference to the delay line, in the second half it swaps them.  Every
-    stage owns its own schedule, derived from the position of the stage inside
-    the frame - the delay feedback chain needs nothing but the write enable of
-    a register instead.
+    A commutator is a pair of multiplexers driven by a periodic selection: in
+    the first half of its window it passes the sum of the previous stage
+    through and hands the delayed difference to the delay line, in the second
+    half it swaps them.  Every stage owns its own schedule, derived from the
+    position of the stage inside the frame.
+
+    The schedule is a module of its own because the delay feedback chain has no
+    counterpart of it: there a stage needs nothing but the write enable of a
+    register.
+
+    The multiplexers themselves sit in the data path of the stage, where the
+    rotated and delayed difference exists; this module only produces their
+    selection.
     """
     period_width = max(1, (period - 1).bit_length())
+    half = max(1, period // 2)
 
-    class Commutator(Module):
+    class CommutatorSchedule(Module):
         # the position inside the window of the stage
         position = Input(Bits(period_width))
-        sum_re = Input(Bits(width))
-        sum_im = Input(Bits(width))
-        diff_re = Input(Bits(width))
-        diff_im = Input(Bits(width))
-        # the two operands of the butterfly of the stage
-        first_re = Output(Bits(width))
-        first_im = Output(Bits(width))
-        second_re = Output(Bits(width))
-        second_im = Output(Bits(width))
+        # the selection of the two multiplexers of the stage
         select = Output(Bits(1))
 
         @generator
         def construct(io):
-            def mux(sel, when_true, when_false):
-                """A two input multiplexer, ``when_true`` is selected by 1."""
-                return Mux(sel, when_false, when_true)
+            io.select = (io.position >= Bits(period_width)(half)).as_bits()
 
-            half = max(1, period // 2)
-            sel = (io.position >= Bits(period_width)(half)).as_bits()
-            io.select = sel
-            io.first_re = mux(sel, io.diff_re, io.sum_re)
-            io.first_im = mux(sel, io.diff_im, io.sum_im)
-            io.second_re = mux(sel, io.sum_re, io.diff_re)
-            io.second_im = mux(sel, io.sum_im, io.diff_im)
-
-    return Commutator
+    return CommutatorSchedule
 
 
 @modparams
@@ -169,6 +159,9 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # the number of cycles the chain ran, saturating: the first window
             # is only meaningful when the chain is filled
             fill = Reg(UInt(count_width), io.clk, io.rst, 0, name="fill")
+            # set when the first window was completed: from then on the bank
+            # of the previous window holds a complete spectrum
+            started = Reg(Bits(1), io.clk, io.rst, 0, name="started")
 
             # ------------------------------------------------------------------
             # the chain of the stages
@@ -231,15 +224,14 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
 
                 # the commutator of the stage, driven by the position inside
                 # its own window
+                # The window of the stage is a power of two, so the position
+                # inside it is a slice of the counter: PyCDE has no modulo
+                # operator for signals.
                 period = 2 * depth
                 period_width = max(1, (period - 1).bit_length())
-                position = (cnt.as_uint()
-                            % UInt(count_width)(period)).as_bits()
-                commutator = Commutator(width=width, period=period)(
-                    position=position[:period_width],
-                    sum_re=e_re.as_bits(), sum_im=e_im.as_bits(),
-                    diff_re=o_re.as_bits(), diff_im=o_im.as_bits())
-                sel_bit = commutator.select
+                position = cnt.as_bits()[:period_width]
+                schedule = CommutatorSchedule(period=period)(position=position)
+                sel_bit = schedule.select
 
                 if s == levels - 1:
                     # the last stage rotates with a trivial rotator: -j
@@ -273,9 +265,10 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # the latency points - 1, so the window is rotated by that amount.
             delayed_o_re, delayed_o_im = delay_line("line_out", half, o_re, o_im)
             # (cnt - (points - 1)) modulo points, and a subtraction of
-            # points - 1 is an addition of one modulo points
-            rotated_count = ((cnt + UInt(count_width)(1))
-                             % UInt(count_width)(points)).as_uint(count_width)
+            # points - 1 is an addition of one modulo points.  The number of
+            # points is a power of two, so the modulo is a bit slice.
+            rotated_count = ((cnt + UInt(count_width)(1)).as_uint(count_width)
+                             .as_bits()[:count_width]).as_uint(count_width)
             first_half = (rotated_count < UInt(count_width)(half)).as_bits()
             chain_re = mux(first_half, e_re, delayed_o_re)
             chain_im = mux(first_half, e_im, delayed_o_im)
@@ -331,10 +324,12 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             window_next = mux(filled & last_in_window, ~window, window)
             fill_next = mux(filled, fill,
                             (fill + UInt(count_width)(1)).as_uint(count_width))
+            started_next = mux(filled & last_in_window, Bits(1)(1), started)
 
             cnt.assign(cnt_next)
             window.assign(window_next)
             fill.assign(fill_next)
+            started.assign(started_next)
 
             # ------------------------------------------------------------------
             # the interface
@@ -342,9 +337,10 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # The chain is free running, so a sample is accepted on every
             # cycle: the frames have to be supplied back to back.
             io.in_ready = Bits(1)(1)
-            # the spectrum of the previous window is complete from the second
-            # window on
-            io.out_valid = filled & (window != Bits(1)(0)).as_bits()
+            # the spectrum of the previous window is complete from the end of
+            # the first window on (the window bit alone is not enough: it
+            # selects the bank, it does not mark the first window)
+            io.out_valid = filled & started
             io.out_real = out_real
             io.out_imag = out_imag
 
