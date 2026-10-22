@@ -65,8 +65,12 @@ def fft_name(width: int, points: int, radices: str, eval_mode: str,
 
 def test_module_name(params: dict) -> str:
     """The name of the pytest/cocotb module which verifies a configuration."""
-    name = (f"pycde_example.test_fft_{params['eval_mode']}_{params['ordering']}"
-            f"_r{params['radices']}_w{params['width']}_p{params['points']}")
+    name = f"pycde_example.test_fft_{params['eval_mode']}"
+    if params["eval_mode"] == "pipelined":
+        # the sub topology of the pipelined architecture
+        name += f"_{params['pipeline_style']}"
+    name += (f"_{params['ordering']}_r{params['radices']}"
+             f"_w{params['width']}_p{params['points']}")
     if params["twiddle_mode"] != "rom":
         name += f"_{params['twiddle_mode']}"
     if params.get("stages", 1) != 1:
@@ -126,6 +130,13 @@ FFT_CONFIGS: list[dict] = [
             pipeline_style="mdc", stages=1),
     _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
             pipeline_style="mdc", stages=2),
+    # the single path delay feedback architecture
+    _config(width=16, points=8, ordering="dit", eval_mode="pipelined",
+            pipeline_style="sdf", stages=1),
+    _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdf", stages=1),
+    _config(width=16, points=16, ordering="dit", eval_mode="pipelined",
+            pipeline_style="sdf", stages=2),
 ]
 
 #: The twiddle generator is tested on its own (as a top level module).

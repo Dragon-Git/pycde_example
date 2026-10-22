@@ -12,7 +12,45 @@ from pycde.dialects import comb
 from pycde.types import Bits
 
 SCALINGS = ("stage", "none")
-TWIDDLE_POSITIONS = ("input", "output")
+TWIDDLE_POSITIONS = ("input", "output", "none")
+
+
+@modparams
+def ComplexMultiplier(width: int = 16):
+    """The complex multiplier of the FFT.
+
+    The product of two complex numbers with ``width`` bits has ``2 * width``
+    bits, the fractional bits are dropped: the result is truncated to the
+    most significant ``width`` bits, exactly like a fixed point multiplier.
+    """
+
+    class ComplexMultiplier(Module):
+        a_re = Input(Bits(width))
+        a_im = Input(Bits(width))
+        b_re = Input(Bits(width))
+        b_im = Input(Bits(width))
+        re = Output(Bits(width))
+        im = Output(Bits(width))
+
+        @generator
+        def construct(io):
+            def shift_right(value, amount):
+                """An arithmetic shift right by a constant."""
+                shift = Bits(value.type.width)(amount)
+                return comb.ShrSOp(value.as_bits(), shift).as_sint()
+
+            a_re = io.a_re.as_sint()
+            a_im = io.a_im.as_sint()
+            b_re = io.b_re.as_sint()
+            b_im = io.b_im.as_sint()
+
+            prod_re = a_re * b_re - a_im * b_im
+            prod_im = a_re * b_im + a_im * b_re
+            amount = width - 1
+            io.re = shift_right(prod_re, amount).as_sint(width).as_bits()
+            io.im = shift_right(prod_im, amount).as_sint(width).as_bits()
+
+    return ComplexMultiplier
 
 
 @modparams
@@ -26,7 +64,9 @@ def Butterfly(width: int = 16, scaling: str = "stage",
     ``twiddle_position`` selects where the twiddle factor is applied: with
     ``"input"`` it multiplies the second operand before the butterfly (the
     decimation in time), with ``"output"`` it multiplies the difference (the
-    decimation in frequency).
+    decimation in frequency) and with ``"none"`` the twiddle factor is
+    ignored (the delay feedback architecture applies it to the data which
+    leaves the delay line).
 
     ``scaling`` selects the scaling of the stage: with ``"stage"`` the
     operands are halved before they are added, so that the magnitude of the
@@ -91,6 +131,10 @@ def Butterfly(width: int = 16, scaling: str = "stage",
                 # the twiddle multiplies the second operand
                 t_re, t_im = complex_multiply(w_re, w_im, b_re, b_im)
                 u_re, u_im = a_re, a_im
+            elif twiddle_position == "none":
+                # the twiddle factor is not applied by the butterfly
+                u_re, u_im = a_re, a_im
+                t_re, t_im = b_re, b_im
             else:
                 # the twiddle multiplies the difference
                 u_re, u_im = a_re, a_im

@@ -83,6 +83,8 @@ according to the configuration:
 | [fft_butterfly](pycde_example/fft_butterfly.py) | the butterfly: the complex multiplier and the adders |
 | [fft_twiddle](pycde_example/fft_twiddle.py) | the twiddle factor generator: a read only memory or a CORDIC rotator |
 | [fft_memory](pycde_example/fft_memory.py) | the in place frame memory with two write and three read ports |
+| [fft_pipelined](pycde_example/fft_pipelined.py) | the unrolled pipeline: every radix-2 stage has its own butterflies |
+| [fft_sdf](pycde_example/fft_sdf.py) | the single path delay feedback: the stages are folded into a chain which is fed back into itself |
 
 | parameter | values | meaning |
 |-----------|--------|---------|
@@ -90,7 +92,7 @@ according to the configuration:
 | `points` | a power of two | the number of points of the transform |
 | `radices` | `"2"` | the radices of the transform |
 | `eval_mode` | `"memory_based"`, `"pipelined"` | `"memory_based"`: the transform is computed iteratively, the intermediate results stay in the frame memory (`log2(points)` passes of `points / 2` butterflies).  `"pipelined"`: the transform is unrolled, every radix-2 stage has its own butterflies |
-| `pipeline_style` | `"sdf"`, `"mdc"`, `"sdc"`, `"mdf"` | the sub topology of the pipelined architecture, only the multi path (`"mdc"`) one is implemented |
+| `pipeline_style` | `"sdf"`, `"mdc"`, `"sdc"`, `"mdf"` | the sub topology of the pipelined architecture: the multi path (`"mdc"`) one unrolls the transform, the single path delay feedback (`"sdf"`) one folds it into a chain of stages which is fed back into itself |
 | `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced |
 | `data_format` | `"fixed"`, `"block_float"` | the number format of the datapath |
 | `scaling` | `"stage"`, `"none"` | the scaling of the stages: `"stage"` halves the operands of every butterfly, so that the magnitude of the datapath does not grow from stage to stage |
@@ -134,11 +136,22 @@ own butterflies and the stages are separated by `stages` registers.  It needs
 `log2(points)` stages with their butterflies and trades the area for the
 throughput, it is only practical for a small number of points.
 
-Not implemented yet: the single path delay feedback, the single path delay
-commutator and the multi path delay feedback sub topologies of the pipelined
-architecture (only the multi path one is implemented), the radix 4 (and larger)
-butterflies, the mixed radix and split radix transforms, the block floating
-point format and the twiddle factors without a memory
+The single path delay feedback architecture (`pipeline_style="sdf"`) folds the
+transform into a chain of `log2(points)` stages: every stage owns a delay line
+(a shift register of `points / 2`, `points / 4`, ..., 1 entries) and a
+butterfly.  The difference of the butterfly is written back into the delay
+line of the stage, the sum is forwarded to the next stage, so the data of a
+frame is transformed while it flows through the chain.  The architecture needs
+`points - 1` registers and one butterfly per stage, the frame based interface
+is built on top of it: the samples are collected in a register array and the
+spectrum is read from it in the natural order.  The bit exact model of the
+architecture is in [fft_sdf_model.py](pycde_example/fft_sdf_model.py), it is
+verified against the reference model of the transform.
+
+Not implemented yet: the single path delay commutator and the multi path
+delay feedback sub topologies of the pipelined architecture, the radix 4 (and
+larger) butterflies, the mixed radix and split radix transforms, the block
+floating point format and the twiddle factors without a memory
 (`twiddle_mode="no_mem"`).  The parameters are already part of the interface,
 they raise a `NotImplementedError` for the configurations which are not
 supported yet.

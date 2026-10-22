@@ -1,6 +1,6 @@
 """A configurable FFT written in PyCDE.
 
-The transform is built from three independent submodules which the top level
+The transform is built from independent submodules which the top level
 instantiates according to the configuration:
 
 * :func:`fft_butterfly.Butterfly` - the butterfly unit (the complex
@@ -8,6 +8,8 @@ instantiates according to the configuration:
 * :func:`fft_twiddle.Twiddle` - the twiddle factor generator (a read only
   memory or a CORDIC rotator).
 * :func:`fft_memory.FrameMemory` - the in place frame memory.
+* :func:`fft_pipelined.FftPipelined` - the unrolled pipeline.
+* :func:`fft_sdf.FftSdf` - the single path delay feedback architecture.
 
 The configuration of the transform:
 
@@ -34,6 +36,9 @@ The configuration of the transform:
     The sub topology of the pipelined architecture: ``"sdf"`` (single path
     delay feedback), ``"mdc"`` (multi path delay commutator), ``"sdc"``
     (single path delay commutator) or ``"mdf"`` (multi path delay feedback).
+    The single path delay feedback folds the transform into a chain of
+    stages which is fed back into itself (see :mod:`fft_sdf`), the multi path
+    one unrolls it (see :mod:`fft_pipelined`).
 
 ``twiddle_mode``
     ``"rom"``, ``"cordic"``, ``"hybrid"`` or ``"no_mem"`` - see
@@ -94,6 +99,7 @@ try:
     )
     from pycde_example.fft_memory import FrameMemory
     from pycde_example.fft_pipelined import FftPipelined
+    from pycde_example.fft_sdf import FftSdf
     from pycde_example.fft_twiddle import Twiddle
 except ImportError:  # executed as a plain script ("python pycde_example/fft.py")
     from fft_butterfly import Butterfly
@@ -109,6 +115,7 @@ except ImportError:  # executed as a plain script ("python pycde_example/fft.py"
     )
     from fft_memory import FrameMemory
     from fft_pipelined import FftPipelined
+    from fft_sdf import FftSdf
     from fft_twiddle import Twiddle
 
 
@@ -150,9 +157,10 @@ def Fft(width: int = 16,
     if data_format == "block_float":
         raise NotImplementedError("the block floating point format is not "
                                   "implemented yet")
-    if eval_mode == "pipelined" and pipeline_style != "mdc":
-        raise NotImplementedError("only the multi path ('mdc') pipelined "
-                                  "architecture is implemented so far")
+    if eval_mode == "pipelined" and pipeline_style not in ("mdc", "sdf"):
+        raise NotImplementedError("only the multi path ('mdc') and the single "
+                                  "path delay feedback ('sdf') pipelined "
+                                  "architectures are implemented so far")
     if stages < 0:
         raise ValueError(f"stages must not be negative, got {stages}")
     if parallel != 1:
@@ -181,13 +189,24 @@ def Fft(width: int = 16,
         @generator
         def construct(io):
             if eval_mode == "pipelined":
-                core = FftPipelined(width=width, points=points,
-                                    ordering=ordering, stages=stages,
-                                    scaling=scaling)(
-                                        clk=io.clk, rst=io.rst,
-                                        in_valid=io.in_valid,
-                                        in_real=io.in_real, in_imag=io.in_imag,
-                                        out_ready=io.out_ready)
+                if pipeline_style == "sdf":
+                    # the single path delay feedback architecture
+                    core = FftSdf(width=width, points=points,
+                                  ordering=ordering, stages=stages,
+                                  scaling=scaling)(
+                                      clk=io.clk, rst=io.rst,
+                                      in_valid=io.in_valid,
+                                      in_real=io.in_real, in_imag=io.in_imag,
+                                      out_ready=io.out_ready)
+                else:
+                    core = FftPipelined(width=width, points=points,
+                                        ordering=ordering, stages=stages,
+                                        scaling=scaling)(
+                                            clk=io.clk, rst=io.rst,
+                                            in_valid=io.in_valid,
+                                            in_real=io.in_real,
+                                            in_imag=io.in_imag,
+                                            out_ready=io.out_ready)
                 io.in_ready = core.in_ready
                 io.out_valid = core.out_valid
                 io.out_real = core.out_real
