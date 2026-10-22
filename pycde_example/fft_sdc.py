@@ -116,8 +116,8 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
     """The delay commutator architecture of the FFT."""
     if scaling not in SCALINGS:
         raise ValueError(f"scaling must be one of {SCALINGS}, got {scaling!r}")
-    if points < 4 or (points & (points - 1)):
-        raise ValueError(f"points must be a power of two and at least 4, "
+    if points < 2 or (points & (points - 1)):
+        raise ValueError(f"points must be a power of two and at least 2, "
                          f"got {points}")
 
     levels = points.bit_length() - 1

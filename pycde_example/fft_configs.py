@@ -151,6 +151,9 @@ FFT_CONFIGS: list[dict] = [
             pipeline_style="sdc", stages=1),
     _config(width=16, points=16, ordering="dif", eval_mode="pipelined",
             pipeline_style="sdc", stages=1),
+    # the smallest transform the commutator handles
+    _config(width=16, points=2, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdc", stages=1),
     # the largest datapath which does not scale the stages: the transform does
     # not divide by the number of points then, so the width has to hold it
     _config(width=24, points=16, ordering="dif", scaling="none"),
