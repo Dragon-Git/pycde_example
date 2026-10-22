@@ -167,6 +167,12 @@ def Fft(width: int = 16,
     if eval_mode == "pipelined" and inverse:
         raise NotImplementedError("the inverse transform is only implemented "
                                   "for the memory based architecture")
+    if eval_mode == "pipelined" and twiddle_mode != "rom":
+        # the pipelined architectures build the factors of their stages from
+        # the table directly, there is no generator to select
+        raise NotImplementedError("the twiddle_mode only applies to the "
+                                  "memory based architecture, the pipelined "
+                                  "ones use the table")
     if eval_mode == "pipelined" and pipeline_style == "sdc":
         # the delay commutator is a decimation in frequency pipeline: it reads
         # the samples in the natural order, the twiddle factors of the stages
