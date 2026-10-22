@@ -34,6 +34,8 @@ def random_samples(points: int, width: int, seed: int = 0,
 def test_sdf_matches_the_transform(width, points, dit):
     """The delay feedback architecture computes the same spectrum."""
     samples = random_samples(points, width, seed=points)
+    # bit exact: the trivial twiddle factors are applied exactly, as the
+    # hardware does
     assert sdf(samples, width, points, dit=dit) == fft(samples, width, points,
                                                         dit=dit, scale=True)
 

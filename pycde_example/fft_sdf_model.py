@@ -25,7 +25,7 @@ difference of the butterfly is at the same scale already.
 
 from __future__ import annotations
 
-from .fft_model import complex_multiply, twiddle_table, wrap
+from .fft_model import apply_twiddle, twiddle_table, wrap
 
 
 def bit_reverse(value: int, bits: int) -> int:
@@ -41,24 +41,27 @@ class SdfStage:
     """One stage of the delay feedback chain."""
 
     def __init__(self, width: int, delay: int, dit: bool, scale: bool,
-                 table: list[tuple[int, int]], step_size: int):
+                 table: list[tuple[int, int]], step_size: int,
+                 points: int = 0):
         self.width = width
         self.delay = delay
         self.dit = dit
         self.scale = scale
         self.table = table
+        self.points = points or 2 * delay
         # the distance between two twiddle factors of the stage
         self.step_size = step_size
         # the shift register, the oldest entry first
         self.shift: list[tuple[int, int]] = []
 
-    def _twiddle(self, phase: int) -> tuple[int, int]:
-        """The twiddle factor of the stage.
+    def _rotate(self, phase: int, re: int, im: int) -> tuple[int, int]:
+        """Multiply with the twiddle factor of this phase of the window.
 
-        The table of the transform holds the first ``points / 2`` factors of
-        the unit circle, the stage uses every ``step_size`` th factor of it.
+        The stage uses every ``step_size`` th factor of the table, and the
+        trivial ones of them are applied exactly (see ``apply_twiddle``).
         """
-        return self.table[(phase % self.delay) * self.step_size]
+        index = (phase % self.delay) * self.step_size
+        return apply_twiddle(index, re, im, self.width, self.points)
 
     def step(self, inp: tuple[int, int], phase: int) -> tuple[int, int]:
         """One cycle of the stage: the input is consumed, the output is produced."""
@@ -69,8 +72,7 @@ class SdfStage:
         fresh = (inp[0] >> 1, inp[1] >> 1) if self.scale else inp
         if self.dit and phase >= self.delay:
             # the twiddle factor multiplies the fresh value of the stage
-            w_re, w_im = self._twiddle(phase)
-            fresh = complex_multiply(w_re, w_im, fresh[0], fresh[1], self.width)
+            fresh = self._rotate(phase - self.delay, fresh[0], fresh[1])
 
         d_re, d_im = delayed
         f_re, f_im = fresh
@@ -82,8 +84,7 @@ class SdfStage:
         elif load:
             # the twiddle factor multiplies the data which leaves the delay
             # line, the difference of the previous window
-            w_re, w_im = self._twiddle(phase)
-            out = complex_multiply(w_re, w_im, d_re, d_im, self.width)
+            out = self._rotate(phase, d_re, d_im)
         else:
             out = total
 
@@ -120,7 +121,8 @@ def sdf_stream(samples: list[tuple[int, int]], width: int, points: int,
         # the decimation in frequency uses the factors with an increasing, the
         # decimation in time with a decreasing exponent
         step_size = 1 << s if not dit else 1 << (levels - 1 - s)
-        stages.append(SdfStage(width, delay, dit, scale, table, step_size))
+        stages.append(SdfStage(width, delay, dit, scale, table, step_size,
+                              points))
 
     if cycles is None:
         cycles = len(samples) + points

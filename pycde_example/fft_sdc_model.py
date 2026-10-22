@@ -57,7 +57,7 @@ against the discrete Fourier transform.
 
 from __future__ import annotations
 
-from .fft_model import complex_multiply, twiddle_table, wrap
+from .fft_model import apply_twiddle, wrap
 
 
 def bit_reverse(value: int, bits: int) -> int:
@@ -112,7 +112,6 @@ def sdc_stream(samples: list[tuple[int, int]], width: int, points: int,
     """
     levels = points.bit_length() - 1
     half = points // 2
-    table = twiddle_table(points, width)
     if cycles is None:
         cycles = len(samples) + 3 * points
 
@@ -142,12 +141,12 @@ def sdc_stream(samples: list[tuple[int, int]], width: int, points: int,
         for s in range(1, levels):
             sel = (cnt >> (levels - 1 - s)) & 1
             if s == levels - 1:
-                # the trivial rotator: the multiplication by -j
+                # the last stage rotates with a trivial rotator only: the
+                # factor is -j
                 rot = (o[1], wrap(-o[0], width)) if sel else o
             else:
                 index = (cnt * (1 << (s - 1))) % half
-                w_re, w_im = table[index]
-                rot = complex_multiply(w_re, w_im, o[0], o[1], width)
+                rot = apply_twiddle(index, o[0], o[1], width, points)
             rotated = rot_bufs[s - 1].step(rot)
             m0, m1 = (rotated, e) if sel else (e, rotated)
             m0_delayed = mux_bufs[s - 1].step(m0)

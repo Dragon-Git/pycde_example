@@ -157,9 +157,13 @@ def make_streaming_fft_tests(**params):
     # the stages of the datapath are scaled unless the configuration says
     # otherwise; the reference model has to be told the same
     scaled = params.get("scaling", "stage") == "stage"
-
     def reference(frame):
-        """The expected result of the transform."""
+        """The expected result of the transform.
+
+        Every architecture is compared bit for bit against the reference
+        model: the trivial twiddle factors are applied exactly there, the way
+        the RTL applies them.
+        """
         if inverse:
             return fft_inverse(frame, width, points, dit=dit, scale=scaled)
         return fft(frame, width, points, dit=dit, scale=scaled,

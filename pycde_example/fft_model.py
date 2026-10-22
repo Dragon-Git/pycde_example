@@ -76,6 +76,34 @@ def complex_multiply(a_re: int, a_im: int, b_re: int, b_im: int,
             truncate(a_re * b_im + a_im * b_re, width))
 
 
+def apply_twiddle(index: int, re: int, im: int, width: int, points: int,
+                  inverse: bool = False) -> tuple[int, int]:
+    """Multiply a complex number with the twiddle factor ``W**index``.
+
+    The trivial factors are applied exactly, the way the hardware does it:
+    ``W**0`` is a wire - the table cannot hold ``+1.0`` (it needs one bit more
+    than the datapath has), so its entry is one unit short of one and
+    multiplying with it would lose a unit of the last bit in every stage - and
+    ``W**(N/4)`` is ``-j``, which is a swap and a negation.  A multiplier is
+    only needed for the factors which are neither.
+
+    This is the single definition of the twiddle factor arithmetic: the models
+    of the architectures and their RTL all follow it.
+    """
+    if index % points == 0:
+        return (re, im)
+    if index % points == points // 4:
+        # -j for the transform, +j for the inverse one
+        if inverse:
+            return (wrap(-im, width), re)
+        return (im, wrap(-re, width))
+    table = twiddle_table(points, width)
+    w_re, w_im = table[index % (points // 2)]
+    if inverse:
+        w_im = -w_im
+    return complex_multiply(w_re, w_im, re, im, width)
+
+
 def fft(samples: list[tuple[int, int]], width: int, points: int,
         dit: bool = True, scale: bool = True, inverse: bool = False,
         twiddle_mode: str = "rom") -> list[tuple[int, int]]:
@@ -114,6 +142,14 @@ def fft(samples: list[tuple[int, int]], width: int, points: int,
             return twiddle_cordic(index, width, points, iterations, inverse)
     else:
         raise ValueError(f"unknown twiddle mode: {twiddle_mode!r}")
+    def rotate(index: int, re: int, im: int) -> tuple[int, int]:
+        """Multiply a complex number with the twiddle factor of ``index``."""
+        if twiddle_mode == "rom":
+            return apply_twiddle(index, re, im, width, points, inverse)
+        # the CORDIC produces its own factors, they are all non trivial
+        w_re, w_im = get_twiddle(index)
+        return complex_multiply(w_re, w_im, re, im, width)
+
     # the decimation in time processes the small butterflies first, the
     # decimation in frequency the large ones
     pass_order = range(stages) if dit else reversed(range(stages))
@@ -126,7 +162,6 @@ def fft(samples: list[tuple[int, int]], width: int, points: int,
                 i1 = i0 + half
                 a_re, a_im = data[i0]
                 b_re, b_im = data[i1]
-                w_re, w_im = get_twiddle(j * step)
                 if scale:
                     # the operands are halved before they are added, so that
                     # the magnitude of the datapath does not grow from stage
@@ -137,7 +172,7 @@ def fft(samples: list[tuple[int, int]], width: int, points: int,
                     b_im >>= 1
                 if dit:
                     # the twiddle multiplies the second input of the butterfly
-                    t_re, t_im = complex_multiply(w_re, w_im, b_re, b_im, width)
+                    t_re, t_im = rotate(j * step, b_re, b_im)
                     u_re, u_im = a_re, a_im
                 else:
                     # the twiddle multiplies the output of the butterfly
@@ -148,7 +183,7 @@ def fft(samples: list[tuple[int, int]], width: int, points: int,
                 diff_re = wrap(u_re - t_re, width)
                 diff_im = wrap(u_im - t_im, width)
                 if not dit:
-                    diff_re, diff_im = complex_multiply(w_re, w_im, diff_re, diff_im, width)
+                    diff_re, diff_im = rotate(j * step, diff_re, diff_im)
                 data[i0] = (sum_re, sum_im)
                 data[i1] = (diff_re, diff_im)
 

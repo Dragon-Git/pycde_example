@@ -179,8 +179,12 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # consumer of the spectrum is not ready, so that no result is
             # lost, and it does not run before the first sample arrived.
             out_held = started & (~io.out_ready)
-            # the chain runs from the cycle the first sample arrives on
-            advance = (running | io.in_valid) & ~out_held
+            # the data path moves on every cycle unless the consumer stalls it
+            advance = ~out_held
+            # the frame grid, however, is anchored at the first sample: the
+            # counters must not move before it arrives, or the idle cycles
+            # would shift every frame
+            counting = (running | io.in_valid) & advance
 
             # ------------------------------------------------------------------
             # the chain of the stages
@@ -271,8 +275,17 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
                     multiplier = ComplexMultiplier(width=width)(
                         a_re=o_re.as_bits(), a_im=o_im.as_bits(),
                         b_re=tw_re.as_bits(), b_im=tw_im.as_bits())
-                    rot_re = multiplier.re.as_sint()
-                    rot_im = multiplier.im.as_sint()
+                    # The trivial factors are applied exactly, as a wire and
+                    # as a swap with a negation: the table cannot hold +1.0, so
+                    # multiplying with its first entry would lose a unit of the
+                    # last bit.
+                    no_twiddle = (tw_index == Bits(index_width)(0)).as_bits()
+                    quarter = (tw_index == Bits(index_width)(points // 4)).as_bits()
+                    rot_re = mux(no_twiddle, o_re,
+                                 mux(quarter, o_im, multiplier.re.as_sint()))
+                    rot_im = mux(no_twiddle, o_im,
+                                 mux(quarter, negate(o_re),
+                                     multiplier.im.as_sint()))
 
                 # the delay line of the rotated difference: it is what the
                 # commutator swaps in
@@ -322,7 +335,7 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
                     enable = (write_bank == Bits(1)(bank_index)).as_bits() \
                         & (rotated_count
                            == UInt(count_width)(slot)).as_bits() \
-                        & filled & advance.as_bits()
+                        & filled & counting.as_bits()
                     reg_re = Reg(SInt(width), io.clk, io.rst, 0, ce=enable,
                                  name=f"buf{bank_index}_re_{bin_index}")
                     reg_re.assign(chain_re)
@@ -348,21 +361,21 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             last_in_window = (rotated_count
                               == UInt(count_width)(points - 1)).as_bits()
             # the counters only move while the chain advances
-            cnt_next = mux(advance,
+            cnt_next = mux(counting,
                            mux(last_input, UInt(count_width)(0),
                                (cnt + UInt(count_width)(1)).as_uint(
                                    count_width)),
                            cnt)
             # the window index counts the completed windows, its lowest bit is
             # the bank
-            window_next = mux(advance & filled & last_in_window, ~window,
+            window_next = mux(counting & filled & last_in_window, ~window,
                               window)
-            fill_next = mux(advance,
+            fill_next = mux(counting,
                             mux(filled, fill,
                                 (fill + UInt(count_width)(1)).as_uint(
                                     count_width)),
                             fill)
-            started_next = mux(advance & filled & last_in_window, Bits(1)(1),
+            started_next = mux(counting & filled & last_in_window, Bits(1)(1),
                                started)
             running_next = mux(io.in_valid, Bits(1)(1), running)
 
