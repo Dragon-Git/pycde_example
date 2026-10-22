@@ -414,9 +414,7 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # ------------------------------------------------------------------
             # the interface
             # ------------------------------------------------------------------
-            # The chain is free running, so a sample is accepted on every
-            # cycle: the frames have to be supplied back to back.
-            # the pipeline accepts a sample while it runs
+            # The chain accepts a sample while it runs.
             io.in_ready = advance
             io.out_valid = sending
             io.out_real = out_real

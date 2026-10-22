@@ -115,48 +115,57 @@ async def receive_frame(dut, points: int, width: int,
     raise AssertionError("the FFT did not produce a result")
 
 
-async def collect_with_backpressure(dut, points: int, width: int,
-                                   spectra: int = 1) -> list[list[tuple[int, int]]]:
-    """Collect spectra while the consumer stalls for a while.
+async def drive_with_backpressure(dut, frames, width: int) -> list[list[tuple[int, int]]]:
+    """Stream the frames while the consumer stalls.
 
-    A result must not be lost when the consumer is not ready: the ready/valid
-    handshake is the only guarantee that a sample was taken.  The stalls are
-    bounded, so that a design which simply stops making progress cannot hide
-    behind the timeout - it would fail the assertion instead.
+    Everything is driven from one coroutine: two coroutines which both wait for
+    the rising edge would apply their signals in an unspecified order around
+    it, so the design would see a different `out_ready` than the test meant to
+    apply.  A sample is held until the interface accepts it, and a result must
+    not be lost while the consumer is not ready.
     """
+    points = len(frames[0])
     results = []
     current = []
-    trace = []
+    sample = 0
+    total = sum(len(f) for f in frames)
+    samples = [s for frame in frames for s in frame]
     stall_for = 0
     for cycle in range(6000):
+        # the consumer stalls for a few cycles in the middle of a window
         if stall_for > 0:
             dut.out_ready.value = 0
             stall_for -= 1
         else:
             dut.out_ready.value = 1
+        # present the next sample
+        if sample < total:
+            re, im = samples[sample]
+            dut.in_valid.value = 1
+            dut.in_real.value = to_bits(re, width)
+            dut.in_imag.value = to_bits(im, width)
+        else:
+            dut.in_valid.value = 0
+            dut.in_real.value = 0
+            dut.in_imag.value = 0
         await RisingEdge(dut.clk)
         await Timer(1, units="ps")
-        # stall for a few cycles in the middle of every window
-        if cycle % 7 == 3:
-            stall_for = 4
+        # the handshake is sampled after the edge, both sides at once
+        if int(dut.in_valid.value) == 1 and int(dut.in_ready.value) == 1:
+            sample += 1
         if int(dut.out_valid.value) == 1 and int(dut.out_ready.value) == 1:
             current.append((to_signed(int(dut.out_real.value), width),
                             to_signed(int(dut.out_imag.value), width)))
             if len(current) == points:
                 results.append(current)
                 current = []
-                if len(results) == spectra:
+                if len(results) >= len(frames):
                     dut.out_ready.value = 1
                     return results
-        elif len(results) < spectra:
-            trace.append((cycle, int(dut.out_valid.value),
-                          int(dut.out_ready.value),
-                          int(dut.out_real.value)))
-            if len(trace) > 40:
-                trace.pop(0)
+        if cycle % 7 == 3:
+            stall_for = 4
     raise AssertionError("the FFT did not produce a result under backpressure,"
-                         f" collected {len(results)} of {spectra} spectra,"
-                         f" last cycles (cycle, valid, ready, real): {trace[-12:]}")
+                         f" collected {len(results)} of {len(frames)} spectra")
 
 
 def make_streaming_fft_tests(**params):
@@ -281,10 +290,9 @@ def make_streaming_fft_tests(**params):
         await reset(dut)
 
         frames = test_frames(points, width)[:1]
-        collector = cocotb.start_soon(
-            collect_with_backpressure(dut, points, width, len(frames)))
-        await stream_frames(dut, frames)
-        results = await collector
+        # one coroutine drives the input and the consumer together: two of them
+        # would race around the clock edge
+        results = await drive_with_backpressure(dut, frames, width)
 
         for frame, got in zip(frames, results):
             expected = reference(frame)
