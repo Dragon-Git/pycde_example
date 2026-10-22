@@ -10,6 +10,7 @@ instantiates according to the configuration:
 * :func:`fft_memory.FrameMemory` - the in place frame memory.
 * :func:`fft_pipelined.FftPipelined` - the unrolled pipeline.
 * :func:`fft_sdf.FftSdf` - the single path delay feedback architecture.
+* :func:`fft_mdf.FftMdf` - the multi path delay feedback architecture.
 
 The configuration of the transform:
 
@@ -98,6 +99,7 @@ try:
         TWIDDLE_MODES,
         fft_name,
     )
+    from pycde_example.fft_mdf import FftMdf
     from pycde_example.fft_memory import FrameMemory
     from pycde_example.fft_pipelined import FftPipelined
     from pycde_example.fft_sdc import FftSdc
@@ -115,6 +117,7 @@ except ImportError:  # executed as a plain script ("python pycde_example/fft.py"
         TWIDDLE_MODES,
         fft_name,
     )
+    from fft_mdf import FftMdf
     from fft_memory import FrameMemory
     from fft_pipelined import FftPipelined
     from fft_sdc import FftSdc
@@ -161,7 +164,7 @@ def Fft(width: int = 16,
         raise NotImplementedError("the block floating point format is not "
                                   "implemented yet")
     if eval_mode == "pipelined" and pipeline_style not in ("unrolled", "sdf",
-                                                           "sdc"):
+                                                           "sdc", "mdf"):
         raise NotImplementedError("only the unrolled ('unrolled'), the single "
                                   "path delay feedback ('sdf') and the single "
                                   "path delay commutator ('sdc') pipelined "
@@ -230,6 +233,14 @@ def Fft(width: int = 16,
                     core = FftSdf(width=width, points=points,
                                   ordering=ordering, stages=stages,
                                   scaling=scaling)(
+                                      clk=io.clk, rst=io.rst,
+                                      in_valid=io.in_valid,
+                                      in_real=io.in_real, in_imag=io.in_imag,
+                                      out_ready=io.out_ready)
+                elif pipeline_style == "mdf":
+                    # the multi path delay feedback architecture
+                    core = FftMdf(width=width, points=points,
+                                  scaling=scaling, stages=stages)(
                                       clk=io.clk, rst=io.rst,
                                       in_valid=io.in_valid,
                                       in_real=io.in_real, in_imag=io.in_imag,
