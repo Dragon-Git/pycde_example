@@ -48,6 +48,12 @@ jobs:
         python -m pycde_example.mini_riscv
         python -m pycde_example.cordic
 
+    - name: Dump CORDIC RTL
+      run: |
+        ls build/ip_cordic_lib/
+        cat build/ip_cordic_lib/CordicLoopRotW32I16/hw/Cordic.sv
+        cat build/ip_cordic_lib/CordicPipelinedRotW24I12/hw/Cordic.sv
+
     - name: Test with pytest
       run: |
         python pycde_example/ahb_ram.py
