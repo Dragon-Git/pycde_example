@@ -73,6 +73,31 @@ def FftPipelined(width: int = 16, points: int = 16, ordering: str = "dit",
                 return (shift_right(prod_re, amount).as_sint(width),
                         shift_right(prod_im, amount).as_sint(width))
 
+            def negate(value):
+                """The negation of a signed value, in the same width."""
+                wide = value.as_sint(width + 1)
+                return (SInt(width + 1)(0) - wide).as_sint(width)
+
+            def rotate(index, re, im):
+                """Multiply with the twiddle factor of `index`.
+
+                The index is a constant of the stage, so the trivial factors
+                are resolved here: W**0 is a wire and W**(points/4) is a swap
+                with a negation.  A multiplier is only built for the rest.  The
+                table cannot hold +1.0, so multiplying with its first entry
+                would cost a unit of the last bit.
+                """
+                index %= points
+                if index == 0:
+                    return (re, im)
+                if index == points // 4:
+                    # the factor is -j (the pipelined architectures compute the
+                    # forward transform only)
+                    return (im, negate(re))
+                return complex_multiply(SInt(width)(table[index % (points // 2)][0]),
+                                        SInt(width)(table[index % (points // 2)][1]),
+                                        re, im)
+
             # ------------------------------------------------------------------
             # the control
             # ------------------------------------------------------------------
@@ -144,9 +169,7 @@ def FftPipelined(width: int = 16, points: int = 16, ordering: str = "dit",
                         v_im = shift_right(v_im, 1)
                     if dit:
                         # the twiddle multiplies the second element of the pair
-                        (t_re, t_im) = complex_multiply(
-                            SInt(width)(table[(i % half) * step][0]),
-                            SInt(width)(table[(i % half) * step][1]), v_re, v_im)
+                        (t_re, t_im) = rotate((i % half) * step, v_re, v_im)
                         sum_re = (u_re + t_re).as_sint(width)
                         sum_im = (u_im + t_im).as_sint(width)
                         diff_re = (u_re - t_re).as_sint(width)
@@ -157,10 +180,8 @@ def FftPipelined(width: int = 16, points: int = 16, ordering: str = "dit",
                         sum_im = (u_im + v_im).as_sint(width)
                         diff_re = (u_re - v_re).as_sint(width)
                         diff_im = (u_im - v_im).as_sint(width)
-                        (diff_re, diff_im) = complex_multiply(
-                            SInt(width)(table[(i % half) * step][0]),
-                            SInt(width)(table[(i % half) * step][1]),
-                            diff_re, diff_im)
+                        (diff_re, diff_im) = rotate((i % half) * step,
+                                                    diff_re, diff_im)
                     if first:
                         new_re.append(sum_re)
                         new_im.append(sum_im)

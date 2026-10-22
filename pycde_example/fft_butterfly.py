@@ -9,7 +9,7 @@ from __future__ import annotations
 from pycde import Input, Module, Output, generator, modparams
 from pycde.constructs import Mux
 from pycde.dialects import comb
-from pycde.types import Bits
+from pycde.types import Bits, SInt
 
 SCALINGS = ("stage", "none")
 TWIDDLE_POSITIONS = ("input", "output", "none")
@@ -85,6 +85,12 @@ def Butterfly(width: int = 16, scaling: str = "stage",
         b_im = Input(Bits(width))
         w_re = Input(Bits(width))
         w_im = Input(Bits(width))
+        # the factor is trivial: a wire (w_is_one) or the rotation by -j
+        # (w_is_minus_j).  Those are not multiplied, which is what the hardware
+        # does - and what keeps the datapath exact, since the table cannot hold
+        # +1.0.
+        w_is_one = Input(Bits(1))
+        w_is_minus_j = Input(Bits(1))
         sum_re = Output(Bits(width))
         sum_im = Output(Bits(width))
         diff_re = Output(Bits(width))
@@ -120,6 +126,20 @@ def Butterfly(width: int = 16, scaling: str = "stage",
             w_re = io.w_re.as_sint()
             w_im = io.w_im.as_sint()
 
+            def negate(value):
+                """The negation of a signed value, in the same width."""
+                wide = value.as_sint(width + 1)
+                return (SInt(width + 1)(0) - wide).as_sint(width)
+
+            def apply_w(re, im):
+                """Multiply with the twiddle factor, exactly if it is trivial."""
+                prod_re, prod_im = complex_multiply(w_re, w_im, re, im)
+                prod_re = mux(io.w_is_one, re, mux(io.w_is_minus_j, im, prod_re))
+                prod_im = mux(io.w_is_one, im,
+                              mux(io.w_is_minus_j, negate(re), prod_im))
+                return prod_re, prod_im
+
+
             if scaling == "stage":
                 # the operands are halved before they are added
                 a_re = shift_right(a_re, 1)
@@ -129,7 +149,7 @@ def Butterfly(width: int = 16, scaling: str = "stage",
 
             if twiddle_position == "input":
                 # the twiddle multiplies the second operand
-                t_re, t_im = complex_multiply(w_re, w_im, b_re, b_im)
+                t_re, t_im = apply_w(b_re, b_im)
                 u_re, u_im = a_re, a_im
             elif twiddle_position == "none":
                 # the twiddle factor is not applied by the butterfly
@@ -146,7 +166,7 @@ def Butterfly(width: int = 16, scaling: str = "stage",
             diff_im = (u_im - t_im).as_sint(width)
 
             if twiddle_position == "output":
-                diff_re, diff_im = complex_multiply(w_re, w_im, diff_re, diff_im)
+                diff_re, diff_im = apply_w(diff_re, diff_im)
 
             io.sum_re = sum_re.as_bits()
             io.sum_im = sum_im.as_bits()

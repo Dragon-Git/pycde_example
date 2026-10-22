@@ -222,7 +222,9 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
                                  twiddle_position="none")(
                                      a_re=a_re.as_bits(), a_im=a_im.as_bits(),
                                      b_re=b_re.as_bits(), b_im=b_im.as_bits(),
-                                     w_re=Bits(width)(0), w_im=Bits(width)(0))
+                                     w_re=Bits(width)(0), w_im=Bits(width)(0),
+                                     w_is_one=Bits(1)(0),
+                                     w_is_minus_j=Bits(1)(0))
                 return (unit.sum_re.as_sint(), unit.sum_im.as_sint(),
                         unit.diff_re.as_sint(), unit.diff_im.as_sint())
 

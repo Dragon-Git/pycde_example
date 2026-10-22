@@ -104,6 +104,11 @@ def FftSdf(width: int = 16, points: int = 16, ordering: str = "dif",
                 shift = Bits(value.type.width)(amount)
                 return comb.ShrSOp(value.as_bits(), shift).as_sint()
 
+            def negate(value):
+                """The negation of a signed value, in the same width."""
+                wide = value.as_sint(width + 1)
+                return (SInt(width + 1)(0) - wide).as_sint(width)
+
             def permute(index: int) -> int:
                 """The bit reversed index."""
                 return int(f"{index:0{levels}b}"[::-1], 2)
@@ -250,16 +255,30 @@ def FftSdf(width: int = 16, points: int = 16, ordering: str = "dif",
                     twiddle_im = (factor_im if twiddle_im is None
                                   else mux(select, factor_im, twiddle_im))
 
+                # the value which is rotated with the twiddle factor
+                rotate_re = fresh_re if dit else delayed_re
+                rotate_im = fresh_im if dit else delayed_im
+                multiplier = ComplexMultiplier(width=width)(
+                    a_re=rotate_re.as_bits(), a_im=rotate_im.as_bits(),
+                    b_re=twiddle_re.as_bits(), b_im=twiddle_im.as_bits())
+                # The trivial factors are applied exactly, as a wire and as a
+                # swap with a negation: the table cannot hold +1.0, so
+                # multiplying with its first entry would lose a unit of the
+                # last bit in every stage which uses W**0.
+                no_twiddle = (index == UInt(phase_width)(0)).as_bits()
+                # the comparison is made in the width of the frame counter:
+                # points / 4 does not fit in the width of a late stage
+                quarter = (index.as_uint(count_width)
+                           == UInt(count_width)(points // 4)).as_bits()
+                rotated_re = mux(no_twiddle, rotate_re,
+                                 mux(quarter, rotate_im, multiplier.re.as_sint()))
+                rotated_im = mux(no_twiddle, rotate_im,
+                                 mux(quarter, negate(rotate_re),
+                                     multiplier.im.as_sint()))
                 if dit:
-                    multiplier = ComplexMultiplier(width=width)(
-                        a_re=fresh_re.as_bits(), a_im=fresh_im.as_bits(),
-                        b_re=twiddle_re.as_bits(), b_im=twiddle_im.as_bits())
-                    butterfly_re = multiplier.re
-                    butterfly_im = multiplier.im
+                    butterfly_re = rotated_re.as_bits()
+                    butterfly_im = rotated_im.as_bits()
                 else:
-                    multiplier = ComplexMultiplier(width=width)(
-                        a_re=delayed_re.as_bits(), a_im=delayed_im.as_bits(),
-                        b_re=twiddle_re.as_bits(), b_im=twiddle_im.as_bits())
                     butterfly_re = fresh_re.as_bits()
                     butterfly_im = fresh_im.as_bits()
 
