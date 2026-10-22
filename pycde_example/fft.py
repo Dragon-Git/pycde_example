@@ -161,6 +161,9 @@ def Fft(width: int = 16,
         raise NotImplementedError("only the multi path ('mdc') and the single "
                                   "path delay feedback ('sdf') pipelined "
                                   "architectures are implemented so far")
+    if eval_mode == "pipelined" and inverse:
+        raise NotImplementedError("the inverse transform is only implemented "
+                                  "for the memory based architecture")
     if stages < 0:
         raise ValueError(f"stages must not be negative, got {stages}")
     if parallel != 1:

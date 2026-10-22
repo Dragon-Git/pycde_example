@@ -93,11 +93,11 @@ according to the configuration:
 | `radices` | `"2"` | the radices of the transform |
 | `eval_mode` | `"memory_based"`, `"pipelined"` | `"memory_based"`: the transform is computed iteratively, the intermediate results stay in the frame memory (`log2(points)` passes of `points / 2` butterflies).  `"pipelined"`: the transform is unrolled, every radix-2 stage has its own butterflies |
 | `pipeline_style` | `"sdf"`, `"mdc"`, `"sdc"`, `"mdf"` | the sub topology of the pipelined architecture: the multi path (`"mdc"`) one unrolls the transform, the single path delay feedback (`"sdf"`) one folds it into a chain of stages which is fed back into itself |
-| `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced |
+| `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced (the memory based architecture only, the pipelined ones use constant factors) |
 | `data_format` | `"fixed"`, `"block_float"` | the number format of the datapath |
 | `scaling` | `"stage"`, `"none"` | the scaling of the stages: `"stage"` halves the operands of every butterfly, so that the magnitude of the datapath does not grow from stage to stage |
 | `stages` | any number >= 0 | the number of pipeline stages: the number of registers between two radix-2 stages of the pipelined architecture |
-| `inverse` | `False`, `True` | the inverse transform (the twiddle factors, the input and the output are conjugated) |
+| `inverse` | `False`, `True` | the inverse transform (the twiddle factors, the input and the output are conjugated), the memory based architecture only |
 | `ordering` | `"dit"`, `"dif"` | decimation in time (the input is read bit reversed) or decimation in frequency (the output is written bit reversed) |
 | `parallel` | `1` | the number of butterflies which are computed in parallel |
 
