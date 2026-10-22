@@ -102,7 +102,10 @@ def CommutatorSchedule(period: int = 4):
 
         @generator
         def construct(io):
-            io.select = (io.position >= Bits(period_width)(half)).as_bits()
+            # a signedness free comparison: the position is an unsigned
+            # number, BitsSignal has no comparison operators
+            io.select = (io.position.as_uint(period_width)
+                         >= UInt(period_width)(half)).as_bits()
 
     CommutatorSchedule.module_name = f"CommutatorSchedule{period}"
     return CommutatorSchedule

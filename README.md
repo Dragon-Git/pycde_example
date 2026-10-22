@@ -85,6 +85,7 @@ according to the configuration:
 | [fft_memory](pycde_example/fft_memory.py) | the in place frame memory with two write and three read ports |
 | [fft_pipelined](pycde_example/fft_pipelined.py) | the unrolled pipeline: every radix-2 stage has its own butterflies |
 | [fft_sdf](pycde_example/fft_sdf.py) | the single path delay feedback: the stages are folded into a chain which is fed back into itself |
+| [fft_sdc](pycde_example/fft_sdc.py) | the single path delay commutator: the stages are folded into a feed forward chain which is rearranged by commutators |
 
 | parameter | values | meaning |
 |-----------|--------|---------|
@@ -92,7 +93,7 @@ according to the configuration:
 | `points` | a power of two | the number of points of the transform |
 | `radices` | `"2"` | the radices of the transform |
 | `eval_mode` | `"memory_based"`, `"pipelined"` | `"memory_based"`: the transform is computed iteratively, the intermediate results stay in the frame memory (`log2(points)` passes of `points / 2` butterflies).  `"pipelined"`: the transform is unrolled, every radix-2 stage has its own butterflies |
-| `pipeline_style` | `"sdf"`, `"mdc"`, `"sdc"`, `"mdf"` | the sub topology of the pipelined architecture: the multi path (`"mdc"`) one unrolls the transform, the single path delay feedback (`"sdf"`) one folds it into a chain of stages which is fed back into itself |
+| `pipeline_style` | `"sdf"`, `"mdc"`, `"sdc"`, `"mdf"` | the sub topology of the pipelined architecture: the multi path (`"mdc"`) one unrolls the transform, the single path delay feedback (`"sdf"`) and the single path delay commutator (`"sdc"`) fold it into a chain of stages |
 | `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced (the memory based architecture only, the pipelined ones use constant factors) |
 | `data_format` | `"fixed"`, `"block_float"` | the number format of the datapath |
 | `scaling` | `"stage"`, `"none"` | the scaling of the stages: `"stage"` halves the operands of every butterfly, so that the magnitude of the datapath does not grow from stage to stage |
@@ -148,13 +149,23 @@ spectrum is read from it in the natural order.  The bit exact model of the
 architecture is in [fft_sdf_model.py](pycde_example/fft_sdf_model.py), it is
 verified against the reference model of the transform.
 
-Not implemented yet: the single path delay commutator and the multi path
-delay feedback sub topologies of the pipelined architecture, the radix 4 (and
-larger) butterflies, the mixed radix and split radix transforms, the block
-floating point format and the twiddle factors without a memory
-(`twiddle_mode="no_mem"`).  The parameters are already part of the interface,
-they raise a `NotImplementedError` for the configurations which are not
-supported yet.
+The single path delay commutator architecture (`pipeline_style="sdc"`) is the
+other way of folding the transform into a chain.  It has no feedback loop: a
+commutator - a multiplexer with a delay line - rearranges the stream so that
+one word per cycle leaves every stage.  It needs `2 * points - 2` registers,
+twice as many as the delay feedback chain, and its control is a commutator
+schedule instead of the write enables of a feedback register.  It is a
+streaming pipeline as well, and it is a decimation in frequency pipeline: it
+reads the samples in the natural order, so `ordering` has to be `"dif"`.  The
+bit exact model of the architecture is in
+[fft_sdc_model.py](pycde_example/fft_sdc_model.py).
+
+Not implemented yet: the multi path delay feedback sub topology of the
+pipelined architecture, the radix 4 (and larger) butterflies, the mixed radix
+and split radix transforms, the block floating point format and the twiddle
+factors without a memory (`twiddle_mode="no_mem"`).  The parameters are already
+part of the interface, they raise a `NotImplementedError` for the
+configurations which are not supported yet.
 
 The sub topologies of the pipelined architecture follow the classical
 framework of the pipelined FFT processors (the delay feedback and the delay

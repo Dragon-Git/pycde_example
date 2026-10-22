@@ -115,6 +115,32 @@ async def receive_frame(dut, points: int, width: int,
     raise AssertionError("the FFT did not produce a result")
 
 
+async def collect_with_backpressure(dut, points: int, width: int,
+                                   spectra: int = 1) -> list[list[tuple[int, int]]]:
+    """Collect spectra while `out_ready` is toggled.
+
+    A result must not be lost when the consumer is not ready: the ready/valid
+    handshake is the only guarantee that a sample was taken.
+    """
+    results = []
+    current = []
+    for cycle in range(40000):
+        # the consumer is ready in two of three cycles
+        dut.out_ready.value = 0 if cycle % 3 == 0 else 1
+        await RisingEdge(dut.clk)
+        await Timer(1, units="ps")
+        if int(dut.out_valid.value) == 1 and int(dut.out_ready.value) == 1:
+            current.append((to_signed(int(dut.out_real.value), width),
+                            to_signed(int(dut.out_imag.value), width)))
+            if len(current) == points:
+                results.append(current)
+                current = []
+                if len(results) == spectra:
+                    dut.out_ready.value = 1
+                    return results
+    raise AssertionError("the FFT did not produce a result under backpressure")
+
+
 def make_streaming_fft_tests(**params):
     """Create the cocotb tests of a streaming FFT configuration.
 
@@ -211,7 +237,24 @@ def make_streaming_fft_tests(**params):
             expected = reference(frame)
             assert got == expected, f"got {got}, expected {expected}"
 
-    return test_fft, test_fft_handshake
+    @cocotb.test()
+    async def test_fft_backpressure(dut):
+        """A stalled consumer must not lose a sample."""
+        clock = cocotb.clock.Clock(dut.clk, 10, units="ns")
+        cocotb.start_soon(clock.start())
+        await reset(dut)
+
+        frames = test_frames(points, width)[:1]
+        collector = cocotb.start_soon(
+            collect_with_backpressure(dut, points, width, len(frames)))
+        await stream_frames(dut, frames)
+        results = await collector
+
+        for frame, got in zip(frames, results):
+            expected = reference(frame)
+            assert got == expected, f"got {got}, expected {expected}"
+
+    return test_fft, test_fft_handshake, test_fft_backpressure
 
 
 def make_fft_tests(**params):
