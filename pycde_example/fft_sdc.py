@@ -166,19 +166,38 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # set when the first window was completed: from then on the bank
             # of the previous window holds a complete spectrum
             started = Reg(Bits(1), io.clk, io.rst, 0, name="started")
+            # The chain only runs once the first sample arrived.  The frame
+            # grid is anchored at the first sample, so the idle cycles before
+            # it must not advance the counters.
+            running = Reg(Bits(1), io.clk, io.rst, 0, name="running")
+
+            # ------------------------------------------------------------------
+            # the advance of the chain
+            # ------------------------------------------------------------------
+            # The chain is a streaming pipeline: it runs on every cycle, so a
+            # sample is accepted on every cycle as well.  It freezes when the
+            # consumer of the spectrum is not ready, so that no result is
+            # lost, and it does not run before the first sample arrived.
+            out_held = started & (~io.out_ready)
+            # the chain runs from the cycle the first sample arrives on
+            advance = (running | io.in_valid) & ~out_held
 
             # ------------------------------------------------------------------
             # the chain of the stages
             # ------------------------------------------------------------------
             def delay_line(name, depth, value_re, value_im):
-                """A shift register of `depth` entries (the chain advances
-                every cycle)."""
+                """A shift register of `depth` entries.
+
+                It advances when the chain advances: the pipeline freezes
+                while the consumer of the spectrum is not ready, which is what
+                `stall` of the reference implementation does.
+                """
                 regs_re = []
                 regs_im = []
                 for i in range(depth):
-                    reg_re = Reg(SInt(width), io.clk, io.rst, 0,
+                    reg_re = Reg(SInt(width), io.clk, io.rst, 0, ce=advance,
                                  name=f"{name}_re_{i}")
-                    reg_im = Reg(SInt(width), io.clk, io.rst, 0,
+                    reg_im = Reg(SInt(width), io.clk, io.rst, 0, ce=advance,
                                  name=f"{name}_im_{i}")
                     regs_re.append(reg_re)
                     regs_im.append(reg_im)
@@ -303,7 +322,7 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
                     enable = (write_bank == Bits(1)(bank_index)).as_bits() \
                         & (rotated_count
                            == UInt(count_width)(slot)).as_bits() \
-                        & filled
+                        & filled & advance.as_bits()
                     reg_re = Reg(SInt(width), io.clk, io.rst, 0, ce=enable,
                                  name=f"buf{bank_index}_re_{bin_index}")
                     reg_re.assign(chain_re)
@@ -328,26 +347,38 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             last_input = (cnt == UInt(count_width)(points - 1)).as_bits()
             last_in_window = (rotated_count
                               == UInt(count_width)(points - 1)).as_bits()
-            cnt_next = mux(last_input, UInt(count_width)(0),
-                           (cnt + UInt(count_width)(1)).as_uint(count_width))
+            # the counters only move while the chain advances
+            cnt_next = mux(advance,
+                           mux(last_input, UInt(count_width)(0),
+                               (cnt + UInt(count_width)(1)).as_uint(
+                                   count_width)),
+                           cnt)
             # the window index counts the completed windows, its lowest bit is
             # the bank
-            window_next = mux(filled & last_in_window, ~window, window)
-            fill_next = mux(filled, fill,
-                            (fill + UInt(count_width)(1)).as_uint(count_width))
-            started_next = mux(filled & last_in_window, Bits(1)(1), started)
+            window_next = mux(advance & filled & last_in_window, ~window,
+                              window)
+            fill_next = mux(advance,
+                            mux(filled, fill,
+                                (fill + UInt(count_width)(1)).as_uint(
+                                    count_width)),
+                            fill)
+            started_next = mux(advance & filled & last_in_window, Bits(1)(1),
+                               started)
+            running_next = mux(io.in_valid, Bits(1)(1), running)
 
             cnt.assign(cnt_next)
             window.assign(window_next)
             fill.assign(fill_next)
             started.assign(started_next)
+            running.assign(running_next)
 
             # ------------------------------------------------------------------
             # the interface
             # ------------------------------------------------------------------
             # The chain is free running, so a sample is accepted on every
             # cycle: the frames have to be supplied back to back.
-            io.in_ready = Bits(1)(1)
+            # the pipeline accepts a sample while it runs
+            io.in_ready = advance
             # the spectrum of the previous window is complete from the end of
             # the first window on (the window bit alone is not enough: it
             # selects the bank, it does not mark the first window)

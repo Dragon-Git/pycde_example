@@ -166,13 +166,24 @@ def make_streaming_fft_tests(**params):
                    twiddle_mode=twiddle_mode)
 
     async def stream_frames(dut, frames):
-        """Send the frames back to back, one sample per cycle."""
+        """Send the frames back to back.
+
+        A sample is held until the interface accepts it: the pipeline freezes
+        while the consumer of the spectrum is not ready, so `in_ready` can be
+        low in the middle of a frame.
+        """
         for frame in frames:
             for (re, im) in frame:
-                dut.out_ready.value = 1
+                # out_ready belongs to the consumer: the tests which stall it
+                # drive it themselves
                 dut.in_real.value = to_bits(re, width)
                 dut.in_imag.value = to_bits(im, width)
                 dut.in_valid.value = 1
+                while True:
+                    await Timer(1, units="ps")
+                    if int(dut.in_ready.value) == 1:
+                        break
+                    await RisingEdge(dut.clk)
                 await RisingEdge(dut.clk)
                 await Timer(1, units="ps")
         # The chain keeps the last sample if it stays valid, and it would then
