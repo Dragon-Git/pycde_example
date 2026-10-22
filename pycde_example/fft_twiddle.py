@@ -1,0 +1,158 @@
+"""The twiddle factor generator of the configurable FFT.
+
+The twiddle factors can be produced in different ways:
+
+``rom``
+    The factors are stored in a read only memory (a register array).  The
+    table holds the first ``points / 2`` factors of the unit circle, the
+    other ones are the conjugates of the first ones.
+
+``cordic``
+    The factors are generated on the fly by a CORDIC rotator.  The CORDIC of
+    the ``cordic`` example is reused, its gain is compensated by the
+    magnitude of its input and the quarter wave symmetry keeps the angle
+    inside the rotation range of the CORDIC.
+
+    .. warning::
+       The handshake between the CORDIC and the transform is not verified
+       yet, the mode is not part of the tested configurations.
+
+``hybrid``
+    A read only memory for a small number of points, a CORDIC for a large
+    one.
+
+The generator has a ready/valid interface: the index of the factor is
+accepted while ``ready`` is high, the factor is valid while ``valid`` is
+high.  The read only memory is combinational, the CORDIC needs a couple of
+cycles.
+"""
+
+from __future__ import annotations
+
+from pycde import Clock, Input, Module, Output, Reset, generator, modparams
+from pycde.constructs import Mux
+from pycde.types import Bits, SInt, UInt
+
+from .cordic import Cordic
+from .cordic_model import cordic_gain
+from .fft_model import cordic_iterations, twiddle_table
+
+TWIDDLE_MODES = ("rom", "cordic", "hybrid", "no_mem")
+
+
+@modparams
+def Twiddle(width: int = 16, points: int = 16, mode: str = "rom",
+            inverse: bool = False, hybrid_limit: int = 32):
+    """A twiddle factor generator.
+
+    ``inverse`` conjugates the factors, which turns the transform into the
+    inverse one.
+    """
+    if mode not in TWIDDLE_MODES:
+        raise ValueError(f"twiddle mode must be one of {TWIDDLE_MODES}, got {mode!r}")
+    if mode == "no_mem":
+        raise NotImplementedError("the 'no_mem' twiddle mode is not implemented yet")
+
+    # the index has the same width as the address of the frame memory
+    index_width = max(1, (points - 1).bit_length())
+    # The CORDIC can only rotate by about +-1.74 radian, the factors of the
+    # second quadrant are built from the first one: W**(k + N/4) = -j * W**k.
+    quarter = max(1, points // 4)
+    # the number of bits of the index inside a quadrant
+    quarter_width = max(0, quarter.bit_length() - 1)
+    # the CORDIC needs enough iterations to resolve the angle down to the
+    # least significant bit of the angle format
+    iterations = cordic_iterations(width)
+    # the gain of the CORDIC is compensated by the magnitude of its input
+    gain = cordic_gain(iterations)
+    scale = 1 << (width - 1)
+    # the input has to be small enough that the gain of the CORDIC does
+    # not overflow the datapath
+    real_input = int((scale - 1) / gain)
+    # the angle of the twiddle factor in the format of the CORDIC (pi is
+    # represented by 1 << (width - 2))
+    angle_shift = width - 1 - (points.bit_length() - 1)
+
+    class Twiddle(Module):
+        clk = Clock()
+        rst = Reset()
+        index = Input(Bits(index_width))
+        index_valid = Input(Bits(1))
+        out_ready = Input(Bits(1))
+        re = Output(Bits(width))
+        im = Output(Bits(width))
+        ready = Output(Bits(1))
+        valid = Output(Bits(1))
+
+        @generator
+        def construct(io):
+            def negate(value):
+                """The negation of a signed value."""
+                return (SInt(width + 1)(0) - value.as_sint(width + 1)).as_sint(width)
+
+            def mux(sel, when_true, when_false):
+                """A two input multiplexer.
+
+                ``pycde.constructs.Mux(sel, a, b)`` returns ``b`` when ``sel``
+                is high, this helper uses the intuitive order.
+                """
+                return Mux(sel, when_false, when_true)
+
+            use_cordic = mode == "cordic" or (mode == "hybrid" and
+                                              points > hybrid_limit)
+            if not use_cordic:
+                # the factors are stored in a read only memory
+                table = twiddle_table(points, width)
+                re_values = [SInt(width)(t[0]) for t in table]
+                im_values = [SInt(width)(t[1]) for t in table]
+                re_value = re_values[0]
+                im_value = im_values[0]
+                for i in range(1, len(re_values)):
+                    hit = (io.index == Bits(index_width)(i)).as_bits()
+                    re_value = mux(hit, re_values[i], re_value)
+                    im_value = mux(hit, im_values[i], im_value)
+                if inverse:
+                    im_value = negate(im_value)
+                io.re = re_value.as_bits()
+                io.im = im_value.as_bits()
+                io.ready = Bits(1)(1)
+                io.valid = Bits(1)(1)
+                return
+
+            # the factors are generated by a CORDIC rotator
+            # The CORDIC is combinational, the factor is always the one of the
+            # current index.  The index must not be registered, otherwise the
+            # factor would lag one cycle behind the transform.
+            # The index of the first quadrant and the flag of the second one.
+            # The quarter is a power of two, so the reduction is a bit slice.
+            if quarter == 1:
+                reduced = UInt(quarter_width)(0)
+            else:
+                # the index inside the quadrant are the lowest bits
+                reduced = io.index[:quarter_width].as_uint()
+            second = (io.index.as_uint() >= UInt(index_width)(quarter)).as_bits()
+            # The twiddle factor is exp(-2j*pi*k/N), the CORDIC rotates by a
+            # positive angle.
+            angle = reduced.as_sint(width + 1) * SInt(width + 1)(1 << angle_shift)
+            if not inverse:
+                angle = angle * SInt(width + 1)(-1)
+            angle = angle.as_sint(width)
+            rotator = Cordic(width=width, iterations=iterations,
+                             mode="rotation", arch="comb")(
+                                 clk=io.clk, rst=io.rst,
+                                 x_i=Bits(width)(real_input), y_i=Bits(width)(0),
+                                 z_i=angle.as_bits(),
+                                 in_valid=io.index_valid,
+                                 out_ready=io.out_ready)
+            # the factors of the second quadrant are the first ones rotated
+            # by -90 degrees
+            re = rotator.x_o.as_sint(width)
+            im = rotator.y_o.as_sint(width)
+            io.re = mux(second, im, re).as_bits()
+            io.im = mux(second, negate(re), im).as_bits()
+            io.ready = Bits(1)(1)
+            # the factor is combinational, it is always valid
+            io.valid = Bits(1)(1)
+
+    Twiddle.module_name = f"Twiddle{mode.capitalize()}{points}W{width}"
+    return Twiddle

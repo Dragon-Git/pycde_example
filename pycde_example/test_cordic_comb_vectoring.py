@@ -3,6 +3,7 @@
 16 bit datapath, 12 iterations.
 """
 
+from .cocotb_runner import run_cocotb
 from .cordic_tb import make_cordic_tests
 
 cordic_result, cordic_handshake = make_cordic_tests(arch="comb", mode="vectoring",
@@ -12,3 +13,4 @@ cordic_result, cordic_handshake = make_cordic_tests(arch="comb", mode="vectoring
 
 def test_cordic_runner():
     """The CORDIC is verified by the cocotb tests above (see conftest.py)."""
+    run_cocotb(__name__)
