@@ -99,6 +99,7 @@ try:
     )
     from pycde_example.fft_memory import FrameMemory
     from pycde_example.fft_pipelined import FftPipelined
+    from pycde_example.fft_sdc import FftSdc
     from pycde_example.fft_sdf import FftSdf
     from pycde_example.fft_twiddle import Twiddle
 except ImportError:  # executed as a plain script ("python pycde_example/fft.py")
@@ -115,6 +116,7 @@ except ImportError:  # executed as a plain script ("python pycde_example/fft.py"
     )
     from fft_memory import FrameMemory
     from fft_pipelined import FftPipelined
+    from fft_sdc import FftSdc
     from fft_sdf import FftSdf
     from fft_twiddle import Twiddle
 
@@ -157,9 +159,10 @@ def Fft(width: int = 16,
     if data_format == "block_float":
         raise NotImplementedError("the block floating point format is not "
                                   "implemented yet")
-    if eval_mode == "pipelined" and pipeline_style not in ("mdc", "sdf"):
-        raise NotImplementedError("only the multi path ('mdc') and the single "
-                                  "path delay feedback ('sdf') pipelined "
+    if eval_mode == "pipelined" and pipeline_style not in ("mdc", "sdf", "sdc"):
+        raise NotImplementedError("only the multi path ('mdc'), the single "
+                                  "path delay feedback ('sdf') and the single "
+                                  "path delay commutator ('sdc') pipelined "
                                   "architectures are implemented so far")
     if eval_mode == "pipelined" and inverse:
         raise NotImplementedError("the inverse transform is only implemented "
@@ -192,7 +195,15 @@ def Fft(width: int = 16,
         @generator
         def construct(io):
             if eval_mode == "pipelined":
-                if pipeline_style == "sdf":
+                if pipeline_style == "sdc":
+                    # the single path delay commutator architecture
+                    core = FftSdc(width=width, points=points,
+                                  scaling=scaling)(
+                                      clk=io.clk, rst=io.rst,
+                                      in_valid=io.in_valid,
+                                      in_real=io.in_real, in_imag=io.in_imag,
+                                      out_ready=io.out_ready)
+                elif pipeline_style == "sdf":
                     # the single path delay feedback architecture
                     core = FftSdf(width=width, points=points,
                                   ordering=ordering, stages=stages,

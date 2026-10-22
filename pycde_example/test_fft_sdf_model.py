@@ -38,6 +38,43 @@ def test_sdf_matches_the_transform(width, points, dit):
                                                         dit=dit, scale=True)
 
 
+@pytest.mark.parametrize("width,points", [(16, 4), (16, 8), (16, 16), (24, 32)])
+@pytest.mark.parametrize("dit", [True, False])
+def test_sdf_consecutive_frames(width, points, dit):
+    """Different consecutive frames are transformed independently.
+
+    The delay lines hold the data of the previous frame while the current one
+    is processed, so a model which is only checked with the same frame fed
+    over and over again can pass while it is wrong: the previous frame is then
+    identical to the current one and hides the dependency.  This test feeds
+    different frames back to back.
+    """
+    levels = points.bit_length() - 1
+    samples = random_samples(points * 4, width, seed=points + 1)
+    if dit:
+        # the decimation in time reads the samples bit reversed
+        samples = [samples[frame_index * points + bit_reverse(i, levels)]
+                   for frame_index in range(4) for i in range(points)]
+    stream = sdf_stream(samples, width, points, dit=dit, cycles=len(samples))
+    for frame_index in (1, 2):
+        # the result of a frame appears `points - 1` cycles after its first
+        # sample
+        base = frame_index * points + points - 1
+        window = stream[base:base + points]
+        frame = samples[frame_index * points:(frame_index + 1) * points]
+        if dit:
+            # the frame which was fed is bit reversed, the transform of the
+            # original one is expected
+            frame = [frame[bit_reverse(i, levels)] for i in range(points)]
+        expected = fft(frame, width, points, dit=dit, scale=True)
+        if dit:
+            got = window
+        else:
+            # the decimation in frequency produces the spectrum bit reversed
+            got = [window[bit_reverse(k, levels)] for k in range(points)]
+        assert got == expected
+
+
 @pytest.mark.parametrize("pipeline", [0, 1, 2])
 def test_sdf_with_pipeline_registers(pipeline):
     """The registers between the stages do not change the result."""

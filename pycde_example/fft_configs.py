@@ -137,6 +137,12 @@ FFT_CONFIGS: list[dict] = [
             pipeline_style="sdf", stages=1),
     _config(width=16, points=16, ordering="dit", eval_mode="pipelined",
             pipeline_style="sdf", stages=2),
+    # the single path delay commutator: a decimation in frequency pipeline
+    # which reads the samples in the natural order
+    _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdc", stages=1),
+    _config(width=16, points=16, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdc", stages=1),
 ]
 
 #: The twiddle generator is tested on its own (as a top level module).
