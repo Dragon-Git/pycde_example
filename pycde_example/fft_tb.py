@@ -154,12 +154,15 @@ def make_streaming_fft_tests(**params):
     dit = params.get("ordering", "dit") == "dit"
     inverse = params.get("inverse", False)
     twiddle_mode = params.get("twiddle_mode", "rom")
+    # the stages of the datapath are scaled unless the configuration says
+    # otherwise; the reference model has to be told the same
+    scaled = params.get("scaling", "stage") == "stage"
 
     def reference(frame):
         """The expected result of the transform."""
         if inverse:
-            return fft_inverse(frame, width, points, dit=dit, scale=True)
-        return fft(frame, width, points, dit=dit, scale=True,
+            return fft_inverse(frame, width, points, dit=dit, scale=scaled)
+        return fft(frame, width, points, dit=dit, scale=scaled,
                    twiddle_mode=twiddle_mode)
 
     async def stream_frames(dut, frames):
@@ -264,12 +267,13 @@ def make_fft_tests(**params):
     dit = params.get("ordering", "dit") == "dit"
     inverse = params.get("inverse", False)
     twiddle_mode = params.get("twiddle_mode", "rom")
+    scaled = params.get("scaling", "stage") == "stage"
 
     def reference(frame):
         """The expected result of the transform."""
         if inverse:
-            return fft_inverse(frame, width, points, dit=dit, scale=True)
-        return fft(frame, width, points, dit=dit, scale=True,
+            return fft_inverse(frame, width, points, dit=dit, scale=scaled)
+        return fft(frame, width, points, dit=dit, scale=scaled,
                    twiddle_mode=twiddle_mode)
 
     @cocotb.test()
