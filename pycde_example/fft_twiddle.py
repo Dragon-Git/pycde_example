@@ -154,28 +154,37 @@ def Twiddle(width: int = 16, points: int = 16, mode: str = "rom",
                 x = rotator.x_o.as_sint(inner)
                 y = rotator.y_o.as_sint(inner)
                 shift_back = 2 * (inner - 1) - (width - 1)
-                prod_re = (x * cos - y * sin).as_sint(inner * 2 + 4)
-                prod_im = (x * sin + y * cos).as_sint(inner * 2 + 4)
+                # the product of two `inner` bit numbers needs `2 * inner`
+                # bits, and the sum of two of them one more
+                wide = 2 * inner + 1
+                prod_re = (x * cos).as_sint(wide) - (y * sin).as_sint(wide)
+                prod_im = (x * sin).as_sint(wide) + (y * cos).as_sint(wide)
                 re = saturate(shift_down(prod_re, shift_back), width)
                 im = saturate(shift_down(prod_im, shift_back), width)
 
                 # W**(k + points/4) = -j * W**k, and +j * conj(W**k) for the
                 # inverse transform
-                if inverse:
-                    io.re = mux(second, saturate(-im, width), re).as_bits()
-                    io.im = mux(second, re, im).as_bits()
-                else:
-                    io.re = mux(second, im, re).as_bits()
-                    io.im = mux(second, saturate(-re, width), im).as_bits()
+                # the operands are cast to the datapath width so that the two
+                # inputs of every multiplexer have the same type
+                rotated_re = saturate(-im, width) if inverse else im
+                rotated_im = re if inverse else saturate(-re, width)
+                io.re = mux(second, rotated_re, re).as_bits()
+                io.im = mux(second, rotated_im, im).as_bits()
                 io.ready = Bits(1)(1)
                 io.valid = Bits(1)(1)
 
             def saturate(value, size):
-                """Clamp to what a two's complement number of `size` bits holds."""
+                """Clamp to what a two's complement number of `size` bits holds.
+
+                The operand is cast to the width of the result first: it may be
+                wider (a negation adds a bit), and the two inputs of a
+                multiplexer have to have the same type.
+                """
+                narrow = value.as_sint(size)
                 high = SInt(size)((1 << (size - 1)) - 1)
                 low = SInt(size)(-((1 << (size - 1)) - 1))
-                return mux((value > high).as_bits(), high,
-                           mux((value < low).as_bits(), low, value))
+                return mux((narrow > high).as_bits(), high,
+                           mux((narrow < low).as_bits(), low, narrow))
 
             def shift_down(value, amount):
                 """An arithmetic shift right by a constant."""
