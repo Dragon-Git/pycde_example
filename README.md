@@ -156,6 +156,13 @@ floating point format and the twiddle factors without a memory
 they raise a `NotImplementedError` for the configurations which are not
 supported yet.
 
+The sub topologies of the pipelined architecture follow the classical
+framework of the pipelined FFT processors (the delay feedback and the delay
+commutator families).  A description of the delay commutator stages is in
+"Analysis and implementation of FFT algorithms" (the internship report of the
+Department of Electronics Engineering, SOE, CUSAT), it is available at
+<https://github.com/roopeshor/Typesetting> under `Reports/Internship-3`.
+
 ## Example List  
 
 ### common_ip
