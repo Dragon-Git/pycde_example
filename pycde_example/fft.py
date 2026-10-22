@@ -368,32 +368,14 @@ def Fft(width: int = 16,
             # ------------------------------------------------------------------
             # the butterfly
             # ------------------------------------------------------------------
-            # The trivial factors are applied exactly: the twiddle table cannot
-            # hold +1.0, so its first entry is one unit short of one, and the
-            # multiplier would cost a unit of the last bit in every butterfly
-            # which uses it.  W**0 is a wire and W**(points/4) is -j.
-            if twiddle_mode == "rom":
-                w_is_one = (twiddle_index == UInt(count_width)(0)).as_bits()
-                # at index points/4 the factor is -j for the transform and +j
-                # for the inverse one, whose table is conjugated
-                quarter = (twiddle_index
-                           == UInt(count_width)(points // 4)).as_bits()
-                w_is_minus_j = quarter if not inverse else Bits(1)(0)
-                w_is_plus_j = quarter if inverse else Bits(1)(0)
-            else:
-                # a CORDIC produces the factors itself, including the trivial
-                # ones, so there is nothing to bypass
-                w_is_one = Bits(1)(0)
-                w_is_minus_j = Bits(1)(0)
-                w_is_plus_j = Bits(1)(0)
+            # The butterfly recognises the trivial factors (W**0 is a wire,
+            # +-j is a swap with a negation) from the factor itself, so that the
+            # datapath stays exact: the table cannot hold +1.0.
             butterfly = Butterfly(width=width, scaling=scaling,
                                   twiddle_position="input" if dit else "output")(
                                       a_re=memory.r0_re, a_im=memory.r0_im,
                                       b_re=memory.r1_re, b_im=memory.r1_im,
-                                      w_re=twiddle.re, w_im=twiddle.im,
-                                      w_is_one=w_is_one,
-                                      w_is_minus_j=w_is_minus_j,
-                                      w_is_plus_j=w_is_plus_j)
+                                      w_re=twiddle.re, w_im=twiddle.im)
             sum_re.assign(butterfly.sum_re)
             sum_im.assign(butterfly.sum_im)
             diff_re.assign(butterfly.diff_re)

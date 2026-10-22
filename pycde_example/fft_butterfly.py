@@ -85,13 +85,6 @@ def Butterfly(width: int = 16, scaling: str = "stage",
         b_im = Input(Bits(width))
         w_re = Input(Bits(width))
         w_im = Input(Bits(width))
-        # the factor is trivial: a wire (w_is_one), the rotation by -j
-        # (w_is_minus_j) or by +j (w_is_plus_j, which the inverse transform
-        # needs).  Those are not multiplied, which is what the hardware does -
-        # and what keeps the datapath exact, since the table cannot hold +1.0.
-        w_is_one = Input(Bits(1))
-        w_is_minus_j = Input(Bits(1))
-        w_is_plus_j = Input(Bits(1))
         sum_re = Output(Bits(width))
         sum_im = Output(Bits(width))
         diff_re = Output(Bits(width))
@@ -133,13 +126,26 @@ def Butterfly(width: int = 16, scaling: str = "stage",
                 return (SInt(width + 1)(0) - wide).as_sint(width)
 
             def apply_w(re, im):
-                """Multiply with the twiddle factor, exactly if it is trivial."""
+                """Multiply with the twiddle factor, exactly if it is trivial.
+
+                The trivial factors are recognised from the factor itself, not
+                from an index: the table cannot hold +1.0, so its first entry
+                is ``maximum`` and no other entry is ``(maximum, 0)``; likewise
+                ``(0, -maximum)`` is -j and ``(0, maximum)`` is +j.  Reading
+                them off the same signal the multiplier uses cannot go out of
+                step with it.
+                """
                 prod_re, prod_im = complex_multiply(w_re, w_im, re, im)
-                quarter_re = mux(io.w_is_minus_j, im, negate(im))
-                quarter_im = mux(io.w_is_minus_j, negate(re), re)
-                trivial = io.w_is_minus_j | io.w_is_plus_j
-                prod_re = mux(io.w_is_one, re, mux(trivial, quarter_re, prod_re))
-                prod_im = mux(io.w_is_one, im, mux(trivial, quarter_im, prod_im))
+                maximum = SInt(width)((1 << (width - 1)) - 1)
+                zero = SInt(width)(0)
+                is_one = ((w_re == maximum) & (w_im == zero)).as_bits()
+                is_minus_j = ((w_re == zero) & (w_im == -maximum)).as_bits()
+                is_plus_j = ((w_re == zero) & (w_im == maximum)).as_bits()
+                quarter = is_minus_j | is_plus_j
+                quarter_re = mux(is_minus_j, im, negate(im))
+                quarter_im = mux(is_minus_j, negate(re), re)
+                prod_re = mux(is_one, re, mux(quarter, quarter_re, prod_re))
+                prod_im = mux(is_one, im, mux(quarter, quarter_im, prod_im))
                 return prod_re, prod_im
 
 
