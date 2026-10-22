@@ -47,9 +47,13 @@ def fft_name(width: int, points: int, radices: str, eval_mode: str,
              scaling: str, stages: int, inverse: bool, ordering: str,
              parallel: int) -> str:
     """The name of the generated SystemVerilog module."""
-    name = (f"Fft{_ARCH_TAG[eval_mode]}{_PIPELINE_TAG[pipeline_style]}"
-            f"{_TWIDDLE_TAG[twiddle_mode]}{_ORDERING_TAG[ordering]}"
-            f"R{radices}W{width}P{points}")
+    name = f"Fft{_ARCH_TAG[eval_mode]}"
+    if eval_mode == "pipelined":
+        # the sub topology only exists for the pipelined architecture, naming
+        # a memory based design after it would be misleading
+        name += _PIPELINE_TAG[pipeline_style]
+    name += (f"{_TWIDDLE_TAG[twiddle_mode]}{_ORDERING_TAG[ordering]}"
+             f"R{radices}W{width}P{points}")
     if stages != 1:
         name += f"St{stages}"
     if data_format != "fixed":

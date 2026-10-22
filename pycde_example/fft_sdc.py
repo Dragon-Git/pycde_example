@@ -104,6 +104,7 @@ def CommutatorSchedule(period: int = 4):
         def construct(io):
             io.select = (io.position >= Bits(period_width)(half)).as_bits()
 
+    CommutatorSchedule.module_name = f"CommutatorSchedule{period}"
     return CommutatorSchedule
 
 
@@ -185,6 +186,11 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
                     regs_im[i].assign(regs_im[i - 1])
                 return regs_re[-1], regs_im[-1]
 
+            def negate(value):
+                """The negation of a signed value, in the same width."""
+                wide = value.as_sint(width + 1)
+                return (SInt(width + 1)(0) - wide).as_sint(width)
+
             def butterfly_of(a_re, a_im, b_re, b_im):
                 unit = Butterfly(width=width, scaling=scaling,
                                  twiddle_position="none")(
@@ -234,9 +240,11 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
                 sel_bit = schedule.select
 
                 if s == levels - 1:
-                    # the last stage rotates with a trivial rotator: -j
+                    # the last stage rotates with a trivial rotator: -j.  The
+                    # negation of a signal widens it by one bit, it is cast
+                    # back so that the two operands of the multiplexer match.
                     rot_re = mux(sel_bit, o_im, o_re)
-                    rot_im = mux(sel_bit, -o_re, o_im)
+                    rot_im = mux(sel_bit, negate(o_re), o_im)
                 else:
                     multiplier = ComplexMultiplier(width=width)(
                         a_re=o_re.as_bits(), a_im=o_im.as_bits(),

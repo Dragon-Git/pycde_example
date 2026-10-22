@@ -146,6 +146,11 @@ def make_streaming_fft_tests(**params):
                 dut.in_valid.value = 1
                 await RisingEdge(dut.clk)
                 await Timer(1, units="ps")
+        # The chain keeps the last sample if it stays valid, and it would then
+        # be received again as the beginning of the next frame.
+        dut.in_valid.value = 0
+        dut.in_real.value = 0
+        dut.in_imag.value = 0
 
     async def collect_spectra(dut, count):
         """Collect `count` spectra, each of `points` samples.

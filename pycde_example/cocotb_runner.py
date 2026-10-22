@@ -64,9 +64,14 @@ def build_rtl() -> None:
 
 
 def run_cocotb(module_name: str) -> None:
-    """Run the cocotb tests of a test module."""
+    """Run the cocotb tests of a test module.
+
+    A module which is not registered is an error: skipping it silently would
+    make the test pass without running anything.
+    """
     if module_name not in RTL_SPECS:
-        return
+        raise KeyError(f"{module_name} is not registered in RTL_SPECS, its RTL "
+                       f"would not be built and the test would not run")
     rtl_name = RTL_SPECS[module_name][1]
     runner = get_runner("verilator")
     runner.test(
