@@ -18,8 +18,15 @@ The twiddle factors can be produced in different ways:
        yet, the mode is not part of the tested configurations.
 
 ``hybrid``
-    A read only memory for a small number of points, a CORDIC for a large
-    one.
+    A coarse CORDIC and a correction table.  The CORDIC turns the vector most
+    of the way, the table holds the cosine and the sine of the angle it leaves
+    over, so the correction is exact for that angle.  The table has
+    ``1 << HYBRID_TABLE_BITS`` entries whatever the number of points is, which
+    is the trade the mode makes - a plain table holds ``points / 2`` entries -
+    and it pays off from a couple of hundred points on.  The CORDIC carries
+    ``HYBRID_GUARD`` bits on top of the datapath; without them the truncation
+    of its shift-add steps would dominate the result and the correction could
+    not recover it.  What is left is a few units of the last bit.
 
 The generator has a ready/valid interface: the index of the factor is
 accepted while ``ready`` is high, the factor is valid while ``valid`` is
@@ -31,18 +38,19 @@ from __future__ import annotations
 
 from pycde import Clock, Input, Module, Output, Reset, generator, modparams
 from pycde.constructs import Mux
+from pycde.dialects import comb
 from pycde.types import Bits, SInt, UInt
 
 from .cordic import Cordic
 from .cordic_model import cordic_gain
-from .fft_model import cordic_iterations, twiddle_table
+from .fft_model import HYBRID_GUARD, HYBRID_TABLE_BITS, cordic_iterations, hybrid_table, twiddle_table
 
 TWIDDLE_MODES = ("rom", "cordic", "hybrid", "no_mem")
 
 
 @modparams
 def Twiddle(width: int = 16, points: int = 16, mode: str = "rom",
-            inverse: bool = False, hybrid_limit: int = 32):
+            inverse: bool = False):
     """A twiddle factor generator.
 
     ``inverse`` conjugates the factors, which turns the transform into the
@@ -98,8 +106,89 @@ def Twiddle(width: int = 16, points: int = 16, mode: str = "rom",
                 """
                 return Mux(sel, when_false, when_true)
 
-            use_cordic = mode == "cordic" or (mode == "hybrid" and
-                                              points > hybrid_limit)
+            def hybrid_core(io):
+                """The coarse CORDIC with the correction table."""
+                inner = width + HYBRID_GUARD
+                turns = inner - HYBRID_TABLE_BITS + 1
+                shift = inner - 1 - (points.bit_length() - 1)
+                quarter = max(1, points // 4)
+                quarter_width = max(0, quarter.bit_length() - 1)
+
+                if quarter == 1:
+                    reduced = UInt(max(1, quarter_width))(0)
+                else:
+                    reduced = io.index[:quarter_width].as_uint()
+                second = (io.index.as_uint()
+                          >= UInt(index_width)(quarter)).as_bits()
+                # the angle of the reduced index, in the format of the CORDIC
+                angle = reduced.as_sint(inner + 1) * SInt(inner + 1)(1 << shift)
+                if not inverse:
+                    angle = angle * SInt(inner + 1)(-1)
+                angle = angle.as_sint(inner)
+
+                start = int(((1 << (inner - 1)) - 1) / cordic_gain(turns))
+                rotator = Cordic(width=inner, iterations=turns,
+                                 mode="rotation", arch="comb")(
+                                     clk=io.clk, rst=io.rst,
+                                     x_i=Bits(inner)(start), y_i=Bits(inner)(0),
+                                     z_i=angle.as_bits(),
+                                     in_valid=io.index_valid,
+                                     out_ready=io.out_ready)
+
+                # the correction table, read with the angle left over
+                cos_values = [SInt(inner)(re) for re, _ in hybrid_table]
+                sin_values = [SInt(inner)(im) for _, im in hybrid_table]
+                offset = (rotator.z_o.as_sint(inner)
+                          + SInt(inner)(1 << (HYBRID_TABLE_BITS - 1))).as_sint(inner)
+                cos = cos_values[0]
+                sin = sin_values[0]
+                for i in range(1, len(cos_values)):
+                    hit = (offset == SInt(inner)(i)).as_bits()
+                    cos = mux(hit, cos_values[i], cos)
+                    sin = mux(hit, sin_values[i], sin)
+
+                # the correction rotation; the vector and the table entries both
+                # carry the scale of the inner datapath
+                x = rotator.x_o.as_sint(inner)
+                y = rotator.y_o.as_sint(inner)
+                shift_back = 2 * (inner - 1) - (width - 1)
+                prod_re = (x * cos - y * sin).as_sint(inner * 2 + 4)
+                prod_im = (x * sin + y * cos).as_sint(inner * 2 + 4)
+                re = saturate(shift_down(prod_re, shift_back), width)
+                im = saturate(shift_down(prod_im, shift_back), width)
+
+                # W**(k + points/4) = -j * W**k, and +j * conj(W**k) for the
+                # inverse transform
+                if inverse:
+                    io.re = mux(second, saturate(-im, width), re).as_bits()
+                    io.im = mux(second, re, im).as_bits()
+                else:
+                    io.re = mux(second, im, re).as_bits()
+                    io.im = mux(second, saturate(-re, width), im).as_bits()
+                io.ready = Bits(1)(1)
+                io.valid = Bits(1)(1)
+
+            def saturate(value, size):
+                """Clamp to what a two's complement number of `size` bits holds."""
+                high = SInt(size)((1 << (size - 1)) - 1)
+                low = SInt(size)(-((1 << (size - 1)) - 1))
+                return mux((value > high).as_bits(), high,
+                           mux((value < low).as_bits(), low, value))
+
+            def shift_down(value, amount):
+                """An arithmetic shift right by a constant."""
+                shift = Bits(value.type.width)(amount)
+                return comb.ShrSOp(value.as_bits(), shift).as_sint()
+
+            use_cordic = mode == "cordic"
+            if mode == "hybrid":
+                # A coarse CORDIC turns the vector most of the way and a small
+                # table holds the cosine and the sine of the angle it leaves
+                # over.  The table has `1 << HYBRID_TABLE_BITS` entries whatever
+                # the number of points is, which is the trade the mode makes:
+                # a plain table holds `points / 2`.
+                hybrid_core(io)
+                return
             if not use_cordic:
                 # the factors are stored in a read only memory
                 table = twiddle_table(points, width)

@@ -94,7 +94,7 @@ according to the configuration:
 | `radices` | `"2"` | the radices of the transform |
 | `eval_mode` | `"memory_based"`, `"pipelined"` | `"memory_based"`: the transform is computed iteratively, the intermediate results stay in the frame memory (`log2(points)` passes of `points / 2` butterflies).  `"pipelined"`: the transform is unrolled, every radix-2 stage has its own butterflies |
 | `pipeline_style` | `"sdf"`, `"mdc"`, `"sdc"`, `"mdf"` | the sub topology of the pipelined architecture: the multi path (`"mdc"`) one unrolls the transform, the single path delay feedback (`"sdf"`) and the single path delay commutator (`"sdc"`) fold it into a chain of stages |
-| `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced (the memory based architecture only, the pipelined ones use constant factors) |
+| `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced (the memory based architecture only, the pipelined ones use constant factors): a table, a CORDIC, a coarse CORDIC with a correction table, or - not implemented - no memory at all |
 | `data_format` | `"fixed"`, `"block_float"` | the number format of the datapath |
 | `scaling` | `"stage"`, `"none"` | the scaling of the stages: `"stage"` halves the operands of every butterfly, so that the magnitude of the datapath does not grow from stage to stage |
 | `stages` | any number >= 0 | the number of pipeline stages: the number of registers between two radix-2 stages of the pipelined architecture |
@@ -159,6 +159,23 @@ streaming pipeline as well, and it is a decimation in frequency pipeline: it
 reads the samples in the natural order, so `ordering` has to be `"dif"`.  The
 bit exact model of the architecture is in
 [fft_sdc_model.py](pycde_example/fft_sdc_model.py).
+
+The three twiddle generators trade accuracy against size.  A table holds
+`points / 2` factors and is exact; a CORDIC holds nothing but is a handful of
+units of the last bit off, and more so as the transform grows; the `hybrid` mode
+turns the vector with a coarse CORDIC and corrects the angle it leaves over with
+a table of a fixed 128 entries, so its size does not depend on the number of
+points.  Measured against the table for a 16 bit datapath:
+
+| points | table | CORDIC | hybrid |
+|--------|-------|--------|--------|
+| 16     | 8 entries, exact | 8 units off | 128 entries, 1 unit off |
+| 256    | 128 entries, exact | 16 units off | 128 entries, 3 units off |
+| 1024   | 512 entries, exact | 21 units off | 128 entries, 4 units off |
+
+The hybrid pays off from about 256 points on, where its table is the smallest of
+the three and it stays much closer than the plain CORDIC.  The CORDIC of this
+example stops working above a 26 bit datapath, the hybrid inherits that.
 
 Not implemented yet: the multi path delay feedback sub topology of the
 pipelined architecture, the radix 4 (and larger) butterflies, the mixed radix

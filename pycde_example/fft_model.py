@@ -19,6 +19,18 @@ from __future__ import annotations
 
 import math
 
+#: How many bits the CORDIC of the ``hybrid`` twiddle mode carries on top of the
+#: datapath.  They are what keeps the error of the coarse rotation small: the
+#: shift-add steps truncate, and without them the correction which follows
+#: cannot recover the accuracy.
+HYBRID_GUARD = 2
+
+#: The number of index bits of the correction table of the ``hybrid`` mode.
+#: The table holds ``2**HYBRID_TABLE_BITS`` entries whatever the number of
+#: points is, while a plain table holds ``points / 2`` - that is the trade the
+#: mode makes, and it pays off from about 256 points on.
+HYBRID_TABLE_BITS = 7
+
 
 def wrap(value: int, width: int) -> int:
     """Truncate ``value`` to ``width`` bits, interpreting it as two's complement."""
@@ -104,6 +116,108 @@ def apply_twiddle(index: int, re: int, im: int, width: int, points: int,
     return complex_multiply(w_re, w_im, re, im, width)
 
 
+def hybrid_parts(width: int) -> tuple[int, int]:
+    """The iterations of the coarse CORDIC and the entries of the correction.
+
+    The width of the inner datapath is ``width + HYBRID_GUARD``; the CORDIC
+    leaves an angle below ``2**-(iterations - 1)`` radian, which is
+    ``2**(inner - iterations - 1)`` steps of the angle format, so the correction
+    table has to hold twice as many entries.  Solving for a table of
+    ``2**HYBRID_TABLE_BITS`` gives the iterations.
+    """
+    inner = width + HYBRID_GUARD
+    iterations = inner - HYBRID_TABLE_BITS + 1
+    return iterations, 1 << HYBRID_TABLE_BITS
+
+
+def hybrid_table(width: int) -> list[tuple[int, int]]:
+    """The correction table: the cosine and sine of every left over angle.
+
+    The index is the left over angle in steps, centred on zero, so index
+    ``2**(HYBRID_TABLE_BITS - 1)`` is no correction at all.
+    """
+    inner = width + HYBRID_GUARD
+    scale = 1 << (inner - 1)
+    maximum = (1 << (inner - 1)) - 1
+    half = 1 << (HYBRID_TABLE_BITS - 1)
+    table = []
+    for index in range(1 << HYBRID_TABLE_BITS):
+        angle = (index - half) * math.pi / (1 << (inner - 2))
+        re = min(max(round(scale * math.cos(angle)), -maximum), maximum)
+        im = min(max(round(scale * math.sin(angle)), -maximum), maximum)
+        table.append((re, im))
+    return table
+
+
+def saturate(value: int, width: int) -> int:
+    """Clamp to the range a two's complement number of ``width`` bits holds.
+
+    The fixed point format cannot represent ``+1.0``, so a value which rounds
+    up to it is clamped to the largest representable number - the same thing
+    the twiddle table does, and the reason the table and the generator agree.
+    """
+    high = (1 << (width - 1)) - 1
+    return min(max(value, -high), high)
+
+
+def twiddle_hybrid(index: int, width: int, points: int,
+                   inverse: bool = False) -> tuple[int, int]:
+    """The factor ``W**index`` from a coarse CORDIC and a correction table.
+
+    The CORDIC turns the vector most of the way and the table corrects the
+    angle it leaves over.  The table is small and its size does not depend on
+    the number of points, which is the point of the structure; the price is a
+    couple of units of the last bit, because the correction is a fixed point
+    multiplication as well.
+
+    The angle of a factor is reduced to the first quadrant, the other ones are
+    built from it by the quarter wave symmetry.
+    """
+    from .cordic_model import cordic as cordic_rotate
+    from .cordic_model import cordic_gain
+
+    inner = width + HYBRID_GUARD
+    iterations, _ = hybrid_parts(width)
+    quarter = max(1, points // 4)
+    reduced = index % quarter
+    second = index >= quarter
+
+    # the angle of the reduced index in the format of the CORDIC
+    shift = inner - 1 - (points.bit_length() - 1)
+    angle = -(reduced << shift)
+    if inverse:
+        angle = -angle
+
+    # the coarse rotation, with the magnitude which compensates the gain
+    start = int(((1 << (inner - 1)) - 1) / cordic_gain(iterations))
+    x, y, left = cordic_rotate(start, 0, angle, inner, iterations, "rotation")
+
+    # the correction: rotate by the angle the CORDIC left over
+    table = hybrid_table(width)
+    half = 1 << (HYBRID_TABLE_BITS - 1)
+    offset = left + half
+    if not 0 <= offset < len(table):
+        raise ValueError(f"the left over angle {left} is outside the correction "
+                         f"table of {len(table)} entries; the width {width} is "
+                         f"too large for this structure")
+    cos, sin = table[offset]
+    # The vector carries the scale of the inner datapath and so do the table
+    # entries, so the product has twice that scale; the result is wanted in the
+    # scale of the datapath.
+    shift_back = 2 * (inner - 1) - (width - 1)
+    re = saturate((x * cos - y * sin) >> shift_back, width)
+    im = saturate((x * sin + y * cos) >> shift_back, width)
+
+    if second:
+        # W**(k + points/4) = -j * W**k, and the conjugate of that factor for
+        # the inverse transform is +j * conj(W**k)
+        if inverse:
+            re, im = saturate(-im, width), re
+        else:
+            re, im = im, saturate(-re, width)
+    return (re, im)
+
+
 def fft(samples: list[tuple[int, int]], width: int, points: int,
         dit: bool = True, scale: bool = True, inverse: bool = False,
         twiddle_mode: str = "rom") -> list[tuple[int, int]]:
@@ -135,11 +249,14 @@ def fft(samples: list[tuple[int, int]], width: int, points: int,
     if twiddle_mode == "rom":
         def get_twiddle(index: int) -> tuple[int, int]:
             return table[index]
-    elif twiddle_mode in ("cordic", "hybrid"):
+    elif twiddle_mode == "cordic":
         iterations = cordic_iterations(width)
 
         def get_twiddle(index: int) -> tuple[int, int]:
             return twiddle_cordic(index, width, points, iterations, inverse)
+    elif twiddle_mode == "hybrid":
+        def get_twiddle(index: int) -> tuple[int, int]:
+            return twiddle_hybrid(index, width, points, inverse)
     else:
         raise ValueError(f"unknown twiddle mode: {twiddle_mode!r}")
     def rotate(index: int, re: int, im: int) -> tuple[int, int]:

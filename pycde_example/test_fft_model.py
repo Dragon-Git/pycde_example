@@ -15,6 +15,7 @@ import pytest
 from .fft_model import (
     bit_reverse,
     complex_multiply,
+    cordic_iterations,
     dft,
     fft,
     fft_inverse,
@@ -188,6 +189,59 @@ def test_inverse_transform():
         # the transform scales by 1/points, the inverse one as well
         assert abs(re - orig_re / points) <= 8 * points
         assert abs(im - orig_im / points) <= 8 * points
+
+
+def test_hybrid_twiddle():
+    """The coarse CORDIC and the correction table match the table of factors."""
+    from .fft_model import hybrid_parts, twiddle_hybrid
+
+    width = 16
+    iterations, entries = hybrid_parts(width)
+    # the table which corrects is small and does not depend on the points
+    assert entries == 1 << 7
+    assert iterations == width - 4
+
+    for points in (16, 256, 1024):
+        table = twiddle_table(points, width)
+        worst = 0
+        for index in range(points // 2):
+            got = twiddle_hybrid(index, width, points)
+            worst = max(worst, abs(got[0] - table[index][0]),
+                        abs(got[1] - table[index][1]))
+        # a couple of units of the last bit: the correction is a fixed point
+        # multiplication as well
+        assert worst <= 8, f"{worst} for {points} points"
+
+
+def test_hybrid_is_closer_than_the_cordic():
+    """The correction makes the coarse CORDIC more accurate, not less."""
+    from .fft_model import twiddle_hybrid
+
+    width, points = 16, 256
+    table = twiddle_table(points, width)
+    iterations = cordic_iterations(width)
+    hybrid_worst = 0
+    cordic_worst = 0
+    for index in range(points // 2):
+        got = twiddle_hybrid(index, width, points)
+        cordic = twiddle_cordic(index, width, points, iterations)
+        hybrid_worst = max(hybrid_worst, abs(got[0] - table[index][0]),
+                           abs(got[1] - table[index][1]))
+        cordic_worst = max(cordic_worst, abs(cordic[0] - table[index][0]),
+                           abs(cordic[1] - table[index][1]))
+    assert hybrid_worst < cordic_worst
+
+
+def test_hybrid_inverse():
+    """The inverse transform conjugates the factors."""
+    from .fft_model import twiddle_hybrid
+
+    width, points = 16, 64
+    forward = twiddle_table(points, width)
+    for index in range(points // 2):
+        got = twiddle_hybrid(index, width, points, inverse=True)
+        assert abs(got[0] - forward[index][0]) <= 8
+        assert abs(got[1] + forward[index][1]) <= 8
 
 
 def test_twiddle_cordic():
