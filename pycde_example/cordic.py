@@ -258,6 +258,7 @@ def build_cordic_system(configs=None, output_directory: str = "build/ip_cordic_l
     into its own system and its own directory.
     """
     configs = CORDIC_CONFIGS if configs is None else configs
+    os.makedirs(output_directory, exist_ok=True)
     systems = []
     for cfg in configs:
         module = Cordic(width=cfg["width"], iterations=cfg["iterations"],
