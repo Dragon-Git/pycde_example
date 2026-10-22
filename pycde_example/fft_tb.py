@@ -118,18 +118,19 @@ async def receive_frame(dut, points: int, width: int,
 async def drive_with_backpressure(dut, frames, width: int) -> list[list[tuple[int, int]]]:
     """Stream the frames while the consumer stalls.
 
-    Everything is driven from one coroutine: two coroutines which both wait for
-    the rising edge would apply their signals in an unspecified order around
-    it, so the design would see a different `out_ready` than the test meant to
-    apply.  A sample is held until the interface accepts it, and a result must
-    not be lost while the consumer is not ready.
+    The handshake is sampled just before the clock edge, which is the moment the
+    design sees it: after `await RisingEdge` the signals describe the following
+    cycle, so reading them there counts a sample as taken which was not, and the
+    whole transaction slips by one.
+
+    Everything is driven from a single coroutine as well: two of them would
+    apply their signals in an unspecified order around the edge.
     """
     points = len(frames[0])
+    samples = [s for frame in frames for s in frame]
     results = []
     current = []
     sample = 0
-    total = sum(len(f) for f in frames)
-    samples = [s for frame in frames for s in frame]
     stall_for = 0
     for cycle in range(6000):
         # the consumer stalls for a few cycles in the middle of a window
@@ -138,8 +139,7 @@ async def drive_with_backpressure(dut, frames, width: int) -> list[list[tuple[in
             stall_for -= 1
         else:
             dut.out_ready.value = 1
-        # present the next sample
-        if sample < total:
+        if sample < len(samples):
             re, im = samples[sample]
             dut.in_valid.value = 1
             dut.in_real.value = to_bits(re, width)
@@ -148,20 +148,26 @@ async def drive_with_backpressure(dut, frames, width: int) -> list[list[tuple[in
             dut.in_valid.value = 0
             dut.in_real.value = 0
             dut.in_imag.value = 0
-        await RisingEdge(dut.clk)
+        # let the combinational logic settle for this cycle, then read the
+        # handshake the way the design will see it at the edge
         await Timer(1, units="ps")
-        # the handshake is sampled after the edge, both sides at once
-        if int(dut.in_valid.value) == 1 and int(dut.in_ready.value) == 1:
+        in_ready = int(dut.in_ready.value)
+        in_valid = int(dut.in_valid.value)
+        out_valid = int(dut.out_valid.value)
+        out_ready = int(dut.out_ready.value)
+        if in_valid == 1 and in_ready == 1:
             sample += 1
-        if int(dut.out_valid.value) == 1 and int(dut.out_ready.value) == 1:
+        if out_valid == 1 and out_ready == 1:
             current.append((to_signed(int(dut.out_real.value), width),
                             to_signed(int(dut.out_imag.value), width)))
-            if len(current) == points:
-                results.append(current)
-                current = []
-                if len(results) >= len(frames):
-                    dut.out_ready.value = 1
-                    return results
+        await RisingEdge(dut.clk)
+        if len(current) == points:
+            results.append(current)
+            current = []
+            if len(results) >= len(frames):
+                dut.out_ready.value = 1
+                dut.in_valid.value = 0
+                return results
         if cycle % 7 == 3:
             stall_for = 4
     raise AssertionError("the FFT did not produce a result under backpressure,"

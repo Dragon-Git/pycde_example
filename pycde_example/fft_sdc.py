@@ -160,7 +160,11 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             cnt = Reg(UInt(count_width), io.clk, io.rst, 0, name="cnt")
             # the bank a window is written into; the other one is read out
             write_bank = Reg(Bits(1), io.clk, io.rst, 0, name="write_bank")
-            # a complete spectrum is waiting to be sent, and its position
+            # a complete spectrum is waiting to be sent, and its position.
+            # The register is set on the cycle which completes a window and the
+            # position starts at zero on the *next* cycle, so the flag has to
+            # stay up for `points` cycles after it rises - that is what the
+            # count below does.
             sending = Reg(Bits(1), io.clk, io.rst, 0, name="sending")
             out_count = Reg(UInt(count_width), io.clk, io.rst, 0,
                             name="out_count")
@@ -332,6 +336,9 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # needed between the capture and the readout.
             # the chain has to be filled before a window is meaningful
             filled = (fill == UInt(count_width)(points - 1)).as_bits()
+            window_done = (counting & filled
+                           & (rotated_count
+                              == UInt(count_width)(points - 1)).as_bits())
             read_bank = ~write_bank
             buf_re = [[], []]
             buf_im = [[], []]
@@ -364,15 +371,9 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # the control flow
             # ------------------------------------------------------------------
             last_input = (cnt == UInt(count_width)(points - 1)).as_bits()
-            last_in_window = (rotated_count
-                              == UInt(count_width)(points - 1)).as_bits()
             last_output = (out_count == UInt(count_width)(points - 1)).as_bits()
             # the spectrum of the window which just completed was sent
             spectrum_sent = sending & last_output & io.out_ready
-            # a window completed: its bank becomes the one to send, and the
-            # chain starts writing into the other one
-            window_done = counting & filled & last_in_window
-
             cnt_next = mux(counting,
                            mux(last_input, UInt(count_width)(0),
                                (cnt + UInt(count_width)(1)).as_uint(
@@ -390,8 +391,17 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # cycle: the last sample of a spectrum is taken exactly when the
             # next window completes, and clearing the flag afterwards would
             # drop the new spectrum.
+            # the flag rises when a window completes and falls again on the
+            # cycle the last position was taken, which is exactly `points`
+            # cycles later: the position starts at zero the cycle after the
+            # flag rises
             sending_next = mux(spectrum_sent, Bits(1)(0), sending)
             sending_next = mux(window_done, Bits(1)(1), sending_next)
+            # The position advances only on a cycle which really takes a
+            # sample.  On the cycle the window completes `sending` is still low
+            # (it rises at the end of it), so nothing is taken and the counter
+            # stays at zero - which is what makes the next cycle hand position
+            # zero over.
             out_count_next = mux(sending & io.out_ready,
                                  (out_count + UInt(count_width)(1)).as_uint(
                                      count_width),
@@ -400,6 +410,7 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # counter width would do the same, but only by accident
             out_count_next = mux(spectrum_sent, UInt(count_width)(0),
                                  out_count_next)
+
 
             # the chain starts on the first sample and never stops
             running_next = mux(io.in_valid, Bits(1)(1), running)
