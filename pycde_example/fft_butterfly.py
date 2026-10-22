@@ -85,12 +85,13 @@ def Butterfly(width: int = 16, scaling: str = "stage",
         b_im = Input(Bits(width))
         w_re = Input(Bits(width))
         w_im = Input(Bits(width))
-        # the factor is trivial: a wire (w_is_one) or the rotation by -j
-        # (w_is_minus_j).  Those are not multiplied, which is what the hardware
-        # does - and what keeps the datapath exact, since the table cannot hold
-        # +1.0.
+        # the factor is trivial: a wire (w_is_one), the rotation by -j
+        # (w_is_minus_j) or by +j (w_is_plus_j, which the inverse transform
+        # needs).  Those are not multiplied, which is what the hardware does -
+        # and what keeps the datapath exact, since the table cannot hold +1.0.
         w_is_one = Input(Bits(1))
         w_is_minus_j = Input(Bits(1))
+        w_is_plus_j = Input(Bits(1))
         sum_re = Output(Bits(width))
         sum_im = Output(Bits(width))
         diff_re = Output(Bits(width))
@@ -134,9 +135,11 @@ def Butterfly(width: int = 16, scaling: str = "stage",
             def apply_w(re, im):
                 """Multiply with the twiddle factor, exactly if it is trivial."""
                 prod_re, prod_im = complex_multiply(w_re, w_im, re, im)
-                prod_re = mux(io.w_is_one, re, mux(io.w_is_minus_j, im, prod_re))
-                prod_im = mux(io.w_is_one, im,
-                              mux(io.w_is_minus_j, negate(re), prod_im))
+                quarter_re = mux(io.w_is_minus_j, im, negate(im))
+                quarter_im = mux(io.w_is_minus_j, negate(re), re)
+                trivial = io.w_is_minus_j | io.w_is_plus_j
+                prod_re = mux(io.w_is_one, re, mux(trivial, quarter_re, prod_re))
+                prod_im = mux(io.w_is_one, im, mux(trivial, quarter_im, prod_im))
                 return prod_re, prod_im
 
 
