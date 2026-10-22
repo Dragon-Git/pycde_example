@@ -291,7 +291,9 @@ def FftSdf(width: int = 16, points: int = 16, ordering: str = "dif",
                                           b_re=butterfly_re,
                                           b_im=butterfly_im,
                                           w_re=Bits(width)(0),
-                                          w_im=Bits(width)(0))
+                                          w_im=Bits(width)(0),
+                                          w_is_one=Bits(1)(0),
+                                          w_is_minus_j=Bits(1)(0))
 
                 # the output of the stage: while the delay line is loaded the
                 # delayed data is forwarded, afterwards the sum of the
