@@ -103,7 +103,7 @@ try:
     from pycde_example.fft_mdf import FftMdf
     from pycde_example.fft_memory import FrameMemory
     from pycde_example.fft_pipelined import FftPipelined
-    from pycde_example.fft_radix_model import parse_radices, radix_size
+    from pycde_example.fft_radix_model import expand_radices
     from pycde_example.fft_sdc import FftSdc
     from pycde_example.fft_sdf import FftSdf
     from pycde_example.fft_twiddle import Twiddle
@@ -123,7 +123,7 @@ except ImportError:  # executed as a plain script ("python pycde_example/fft.py"
     from fft_mdf import FftMdf
     from fft_memory import FrameMemory
     from fft_pipelined import FftPipelined
-    from fft_radix_model import parse_radices, radix_size
+    from fft_radix_model import expand_radices
     from fft_sdc import FftSdc
     from fft_sdf import FftSdf
     from fft_twiddle import Twiddle
@@ -165,11 +165,7 @@ def Fft(width: int = 16,
     # The radices are a list whose product is the number of points.  Only the
     # unrolled pipeline is written for a radix larger than 2 so far: the other
     # architectures have a radix 2 butterfly hard wired in their stages.
-    radix_list = parse_radices(radices)
-    if radix_size(radix_list) != points:
-        raise ValueError(f"the radices {radices!r} describe "
-                         f"{radix_size(radix_list)} points, but the transform "
-                         f"has {points}")
+    radix_list = expand_radices(radices, points)
     mixed_radix = any(radix != 2 for radix in radix_list)
     if mixed_radix and not (eval_mode == "pipelined"
                             and pipeline_style == "unrolled"):

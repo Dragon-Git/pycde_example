@@ -23,17 +23,14 @@ from pycde.signals import ArraySignal
 from pycde.types import Bits, SInt, UInt
 
 from .fft_model import twiddle_table
-from .fft_radix_model import mixed_reverse, parse_radices, radix_size
+from .fft_radix_model import expand_radices, mixed_reverse
 
 
 @modparams
 def FftPipelined(width: int = 16, points: int = 16, ordering: str = "dit",
                  stages: int = 1, scaling: str = "stage", radices: str = "2"):
     """The pipelined (unrolled) architecture of the FFT."""
-    radix_list = parse_radices(radices)
-    if radix_size(radix_list) != points:
-        raise ValueError(f"the radices {radices!r} describe "
-                         f"{radix_size(radix_list)} points, not {points}")
+    radix_list = expand_radices(radices, points)
     count_width = max(1, (points - 1).bit_length())
     table = twiddle_table(points, width)
     dit = ordering == "dit"

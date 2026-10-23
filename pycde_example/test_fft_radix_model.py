@@ -13,7 +13,7 @@ import random
 import pytest
 
 from .fft_model import dft, fft, to_fixed
-from .fft_radix_model import fft_mixed, log2, mixed_reverse, parse_radices, radix_size
+from .fft_radix_model import expand_radices, fft_mixed, log2, mixed_reverse, parse_radices, radix_size
 
 
 def tolerance(width: int, stages: list[int]) -> int:
@@ -96,6 +96,27 @@ def test_parse_radices_rejects_a_radix_which_is_not_a_power_of_two():
     for bad in ("3", "4,3", "0", "1"):
         with pytest.raises(ValueError):
             parse_radices(bad)
+
+
+def test_a_single_radix_is_repeated_to_fill_the_transform():
+    """`"2"` on 16 points means four radix 2 stages, not two points."""
+    assert expand_radices("2", 16) == [2, 2, 2, 2]
+    assert expand_radices("4", 64) == [4, 4, 4]
+    assert expand_radices("8", 8) == [8]
+    assert expand_radices("2", 2) == [2]
+
+
+def test_a_list_of_radices_is_taken_literally():
+    """A mixed list has to describe exactly the number of points."""
+    assert expand_radices("4,2", 8) == [4, 2]
+    with pytest.raises(ValueError):
+        expand_radices("4,2", 16)
+
+
+def test_a_single_radix_has_to_divide_the_points():
+    """A radix which does not fill the transform is a mistake."""
+    with pytest.raises(ValueError):
+        expand_radices("8", 12)
 
 
 def test_parse_radices_accepts_a_list():

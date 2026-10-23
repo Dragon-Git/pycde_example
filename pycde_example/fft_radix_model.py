@@ -45,6 +45,33 @@ def radix_size(radices: str | list[int]) -> int:
     return size
 
 
+def expand_radices(radices: str | list[int], points: int) -> list[int]:
+    """The radices of a transform of ``points`` points.
+
+    A single radix is repeated until it fills the transform, which is how a
+    configuration says "all stages have this radix": ``"2"`` on 16 points is
+    four radix 2 stages and ``"4"`` on 64 points three radix 4 ones.  A list of
+    several radices is taken literally and has to describe exactly ``points``
+    points, because how a mixed list should be repeated would be a guess.
+    """
+    stages = parse_radices(radices)
+    if len(stages) == 1:
+        radix = stages[0]
+        if points % radix:
+            raise ValueError(f"a radix of {radix} does not fill {points} points")
+        expanded = []
+        size = 1
+        while size < points:
+            expanded.append(radix)
+            size *= radix
+        return expanded
+    size = radix_size(stages)
+    if size != points:
+        raise ValueError(f"the radices {radices!r} describe {size} points, "
+                         f"not {points}")
+    return stages
+
+
 def log2(value: int) -> int:
     """The binary logarithm of a power of two."""
     return value.bit_length() - 1
@@ -113,10 +140,7 @@ def fft_mixed(samples: list[tuple[int, int]], width: int, points: int,
     reads the samples in the permuted order and the decimation in frequency
     writes the result in it, the spectrum itself is always natural.
     """
-    stages = parse_radices(radices)
-    if radix_size(stages) != points:
-        raise ValueError(f"the radices {radices!r} describe {radix_size(stages)} "
-                         f"points, not {points}")
+    stages = expand_radices(radices, points)
     if len(samples) != points:
         raise ValueError("the number of samples must match the number of points")
 
