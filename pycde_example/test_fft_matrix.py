@@ -127,3 +127,84 @@ def test_the_twiddle_generators_are_all_covered():
     generators = {config["twiddle"] for config in all_configurations()}
     assert generators == {"rom", "cordic", "hybrid", "no_mem_cascade",
                           "no_mem_logic"}
+
+
+def test_the_shards_cover_the_space_exactly_once():
+    """The stress matrix splits the space, it does not sample it.
+
+    A shape which falls between two shards would be silently untested, and a shape
+    which lands in two would be tested twice at the cost of a build and a
+    simulation each time.  Neither shows up as a failure, so it is checked here.
+    """
+    from .fft_matrix import shard
+
+    configs = list(all_configurations())
+    for shards in (1, 4, 20):
+        def identity(config):
+            """Everything which makes one configuration differ from another."""
+            return (config["eval_mode"], config["style"], config["points"],
+                    config["decomposition"], config["ordering"],
+                    config["scaling"], config["twiddle"], config["inverse"],
+                    config["width"])
+
+        collected = []
+        for index in range(shards):
+            collected.extend(identity(config)
+                             for config in shard(configs, index, shards))
+        assert len(collected) == len(configs), f"{shards} shards lose a shape"
+        assert len(set(collected)) == len(configs), \
+            f"{shards} shards repeat a shape"
+
+
+def test_the_shards_are_evenly_loaded():
+    """A shard three times the size of another wastes the machines.
+
+    The work is spread by the cost of a shape - its number of points and stages -
+    so that no machine is left with all the large transforms.
+    """
+    from .fft_matrix import shard
+
+    configs = list(all_configurations())
+    weights = []
+    for index in range(20):
+        total = sum(config["points"]
+                    * max(1, len(str(config["radices"]).split(",")))
+                    for config in shard(configs, index, 20))
+        weights.append(total)
+    heaviest, lightest = max(weights), min(weights)
+    assert lightest > 0
+    assert heaviest / lightest < 1.15, f"loads range {lightest} to {heaviest}"
+
+
+def test_every_shard_has_work():
+    """No machine is given nothing to do."""
+    from .fft_matrix import shard
+
+    configs = list(all_configurations())
+    for index in range(20):
+        assert shard(configs, index, 20), f"shard {index} is empty"
+
+
+def test_the_complete_vector_set_has_the_shapes_it_promises():
+    """The stress matrix runs this set, so its content is worth pinning.
+
+    Each frame is there to exercise something the others do not: an exact answer,
+    a single bin, the bin at half the band, a quarter turn between the real and the
+    imaginary datapath, linearity, a worst case for the width.  A frame which is
+    quietly dropped would leave that property untested everywhere.
+    """
+    from .fft_tb import complete_frames
+
+    for points in (4, 8, 16, 32):
+        frames = complete_frames(points, 16)
+        assert len(frames) >= 10, f"{len(frames)} frames for {points} points"
+        # an impulse: exactly one non zero sample
+        assert sum(1 for sample in frames[0] if sample != (0, 0)) == 1
+        # a constant and an alternating sequence
+        assert len({sample for sample in frames[1]}) == 1
+        assert len({sample for sample in frames[2]}) == 2
+        # a real signal, whose imaginary part is zero everywhere
+        assert any(all(im == 0 for _, im in frame) for frame in frames)
+        # the most negative value, in a real signal
+        lowest = -(1 << 15) + 1
+        assert any(all(re == lowest for re, _ in frame) for frame in frames)

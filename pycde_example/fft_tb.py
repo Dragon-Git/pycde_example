@@ -65,6 +65,111 @@ def test_frames(points: int, width: int, count: int = 3) -> list[list[tuple[int,
     return frames
 
 
+def complete_frames(points: int, width: int) -> list[list[tuple[int, int]]]:
+    """The whole set of shapes a transform has to get right.
+
+    The default set of `test_frames` is three frames, which is enough to catch a
+    datapath which is structurally wrong.  This set is the one the stress matrix
+    runs, and it is chosen so that each frame exercises something the others do
+    not:
+
+    * an impulse, whose spectrum is flat and therefore exact in integer
+      arithmetic;
+    * a constant, which is the single bin at zero - and the frame which has to
+      come out exactly right for a butterfly whose rotations cancel;
+    * the alternating sequence, the single bin at half the band, which is what
+      separates a chain that mixes up its quarters;
+    * a complex exponential at a few bins, including the last one, whose factor
+      is the least trivial;
+    * a real cosine and a real sine, which are two bins each and a quarter turn
+      apart, and which tie the real and the imaginary datapath together;
+    * two tones, which say that the datapath is linear;
+    * a ramp, whose spectrum is a closed form and which is nothing like a tone;
+    * noise at a small amplitude and noise at full scale, the second being the
+      one which stresses the width of the accumulator;
+    * a frame whose every sample is the most negative value the format holds,
+      which is the single input for which a negation or a halving can leave the
+      range.
+    """
+    scale = 1 << (width - 1)
+    maximum = scale - 1
+    frames = []
+
+    impulse = [(0, 0)] * points
+    impulse[0] = (64 * points, 0)
+    frames.append(impulse)
+
+    frames.append([(scale // 2, 0)] * points)
+    frames.append([(scale // 2 if n % 2 == 0 else -(scale // 2), 0)
+                   for n in range(points)])
+
+    bins = sorted({1, points // 4, points // 2 - 1, points - 1})
+    for bin_index in bins:
+        if not 0 < bin_index < points:
+            continue
+        frames.append([
+            (to_fixed(0.4 * math.cos(2 * math.pi * bin_index * n / points),
+                      width),
+             to_fixed(0.4 * math.sin(2 * math.pi * bin_index * n / points),
+                      width))
+            for n in range(points)])
+
+    for bin_index in sorted({1, points // 2 - 1}):
+        if not 0 < bin_index < points // 2:
+            continue
+        frames.append([
+            (to_fixed(0.4 * math.cos(2 * math.pi * bin_index * n / points),
+                      width), 0)
+            for n in range(points)])
+        frames.append([
+            (to_fixed(0.4 * math.sin(2 * math.pi * bin_index * n / points),
+                      width), 0)
+            for n in range(points)])
+
+    first = [(to_fixed(0.2 * math.cos(2 * math.pi * n / points), width),
+              to_fixed(0.2 * math.sin(2 * math.pi * n / points), width))
+             for n in range(points)]
+    third = [(to_fixed(0.2 * math.cos(6 * math.pi * n / points), width),
+              to_fixed(0.2 * math.sin(6 * math.pi * n / points), width))
+             for n in range(points)]
+    frames.append([(a[0] + b[0], a[1] + b[1]) for a, b in zip(first, third)])
+
+    step = maximum // max(1, points)
+    frames.append([(n * step, 0) for n in range(points)])
+
+    rng = random.Random(0xFF7 + width * 131 + points * 17)
+    for amplitude in (0.3, 1.0):
+        frame = []
+        for _ in range(points):
+            radius = rng.uniform(0.0, amplitude)
+            angle = rng.uniform(0.0, 2.0 * math.pi)
+            frame.append((to_fixed(radius * math.cos(angle), width),
+                          to_fixed(radius * math.sin(angle), width)))
+        frames.append(frame)
+
+    # The most negative value the format holds, as a real signal.  It is the one
+    # input for which a negation and a halving are both at the edge of the range.
+    # It is real on purpose: a complex sample of that magnitude in both parts
+    # would be 1.41 units long, and the datapath is only meant to carry vectors
+    # shorter than one.
+    low = -(1 << (width - 1)) + 1
+    frames.append([(low, 0)] * points)
+
+    return frames
+
+
+def frames_for(params: dict, points: int, width: int):
+    """The frames a configuration is tested with.
+
+    ``frames="complete"`` asks for the whole set, which is what the stress matrix
+    runs; the default is the small set, because a frame costs a simulation and the
+    regular matrix runs fifty configurations.
+    """
+    if params.get("frames", "classic") == "complete":
+        return complete_frames(points, width)
+    return test_frames(points, width)
+
+
 async def reset(dut) -> None:
     """Apply the reset and release it.
 
@@ -278,7 +383,7 @@ def make_streaming_fft_tests(**params):
         cocotb.start_soon(clock.start())
         await reset(dut)
 
-        frames = test_frames(points, width)
+        frames = frames_for(params, points, width)
         # the collector runs while the frames are streamed: the spectra appear
         # after the latency of the chain
         collector = cocotb.start_soon(collect_spectra(dut, len(frames)))
@@ -299,7 +404,7 @@ def make_streaming_fft_tests(**params):
         # the chain is free running: it is always ready
         assert int(dut.in_ready.value) == 1, "the FFT has to accept a sample"
 
-        frames = test_frames(points, width)[:2]
+        frames = frames_for(params, points, width)[:2]
         collector = cocotb.start_soon(collect_spectra(dut, len(frames)))
         await stream_frames(dut, frames)
         results = await collector
@@ -315,7 +420,7 @@ def make_streaming_fft_tests(**params):
         cocotb.start_soon(clock.start())
         await reset(dut)
 
-        frames = test_frames(points, width)[:1]
+        frames = frames_for(params, points, width)[:1]
         # one coroutine drives the input and the consumer together: two of them
         # would race around the clock edge
         results = await drive_with_backpressure(dut, frames, width)
@@ -391,7 +496,7 @@ def make_mdc_tests(**params):
         cocotb.start_soon(clock.start())
         await reset(dut)
 
-        frames = test_frames(points, width)
+        frames = frames_for(params, points, width)
         collector = cocotb.start_soon(
             collect_spectra(dut, len(frames) - 1, width, points))
         await stream_frames(dut, frames, width)
@@ -411,7 +516,7 @@ def make_mdc_tests(**params):
         assert int(dut.in_ready.value) == 1, "the FFT has to accept a frame"
         assert int(dut.out_valid.value) == 0, "there is no result yet"
 
-        frames = test_frames(points, width)[:2]
+        frames = frames_for(params, points, width)[:2]
         collector = cocotb.start_soon(collect_spectra(dut, 1, width, points))
         await stream_frames(dut, frames, width)
         results = await collector
@@ -442,7 +547,7 @@ def make_fft_tests(**params):
         cocotb.start_soon(clock.start())
         await reset(dut)
 
-        for frame in test_frames(points, width):
+        for frame in frames_for(params, points, width):
             await send_frame(dut, frame, width)
             got = await receive_frame(dut, points, width)
             expected = reference(frame)
@@ -459,7 +564,7 @@ def make_fft_tests(**params):
         assert int(dut.in_ready.value) == 1, "the FFT has to accept a frame"
         assert int(dut.out_valid.value) == 0, "there is no result yet"
 
-        frame = test_frames(points, width)[0]
+        frame = frames_for(params, points, width)[0]
         await send_frame(dut, frame, width)
         got = await receive_frame(dut, points, width)
         expected = reference(frame)

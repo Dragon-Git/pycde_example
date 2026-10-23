@@ -263,3 +263,64 @@ def summary() -> dict[str, int]:
         counts[key] = counts.get(key, 0) + 1
     counts["total"] = sum(counts.values())
     return counts
+
+
+def full_configurations():
+    """The whole accepted space, in the shape `fft_configs` uses.
+
+    Each entry is what `build_fft_system` needs and what the test bench is
+    parameterised by, so the stress matrix can be generated from the same
+    enumeration the models are checked against.
+    """
+    from .fft_configs import _config
+
+    for config in all_configurations():
+        yield _config(
+            width=config["width"],
+            points=config["points"],
+            ordering=config["ordering"],
+            twiddle_mode=config["twiddle"],
+            inverse=config["inverse"],
+            scaling=config["scaling"],
+            radices=config["radices"],
+            eval_mode=config["eval_mode"],
+            pipeline_style=config["style"],
+            stages=1,
+        )
+
+
+def shard(configs: list, index: int, total: int) -> list:
+    """The slice of ``configs`` which belongs to one machine of ``total``.
+
+    The work is spread by the cost of a configuration rather than by its count:
+    a shape is settled by its number of points and its number of stages, which
+    say how many cycles a frame takes and how long the build is.  Splitting by
+    count alone leaves one machine with all the large transforms and the others
+    idle.
+    """
+    if not 0 <= index < total:
+        raise ValueError(f"shard {index} is not one of {total}")
+    costed = []
+    for position, config in enumerate(configs):
+        # A configuration is handed over in either of two shapes: the flat record
+        # `all_configurations` produces, or the entry `fft_configs` produces with
+        # its parameters under "params".  The weight is the same either way.
+        params = config.get("params", config)
+        stages = len(str(params["radices"]).split(","))
+        points = params["points"]
+        # a frame costs about `points` cycles, and the datapath is built once
+        # per stage; the product is a proxy for both build time and run time
+        weight = points * max(1, stages)
+        costed.append((weight, position, config))
+    costed.sort(key=lambda item: (-item[0], item[1]))
+
+    # the largest shapes go to the emptiest machine, one after the other
+    bins: list[list] = [[] for _ in range(total)]
+    loads = [0] * total
+    for weight, _, config in costed:
+        lightest = loads.index(min(loads))
+        bins[lightest].append(config)
+        loads[lightest] += weight
+    # keep the order of the space inside a shard, so a failure reads in order
+    order = {id(config): position for position, config in enumerate(configs)}
+    return sorted(bins[index], key=lambda config: order[id(config)])
