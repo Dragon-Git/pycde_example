@@ -107,6 +107,7 @@ try:
     from pycde_example.fft_radix_model import expand_radices
     from pycde_example.fft_sdc import FftSdc
     from pycde_example.fft_sdf import FftSdf
+    from pycde_example.fft_sdf_radix import FftSdfRadix
     from pycde_example.fft_twiddle import Twiddle
 except ImportError:  # executed as a plain script ("python pycde_example/fft.py")
     from fft_butterfly import Butterfly
@@ -127,6 +128,7 @@ except ImportError:  # executed as a plain script ("python pycde_example/fft.py"
     from fft_radix_model import expand_radices
     from fft_sdc import FftSdc
     from fft_sdf import FftSdf
+    from fft_sdf_radix import FftSdfRadix
     from fft_twiddle import Twiddle
 
 
@@ -169,11 +171,11 @@ def Fft(width: int = 16,
     radix_list = expand_radices(radices, points)
     mixed_radix = any(radix != 2 for radix in radix_list)
     if mixed_radix and not (eval_mode == "pipelined"
-                            and pipeline_style == "unrolled"):
+                            and pipeline_style in ("unrolled", "sdf")):
         raise NotImplementedError(
-            f"a radix larger than 2 is only implemented for the unrolled "
-            f"pipeline so far, got the radices {radices!r} with "
-            f"{eval_mode!r} and {pipeline_style!r}")
+            f"a radix larger than 2 is implemented for the unrolled pipeline "
+            f"and the delay feedback chain so far, got the radices "
+            f"{radices!r} with {eval_mode!r} and {pipeline_style!r}")
     if data_format == "block_float":
         raise NotImplementedError("the block floating point format is not "
                                   "implemented yet")
@@ -207,6 +209,10 @@ def Fft(width: int = 16,
             raise NotImplementedError("the delay commutator architecture has "
                                       "a fixed schedule, the parameter stages "
                                       "does not apply to it")
+    if (pipeline_style == "sdf" and mixed_radix and ordering != "dif"):
+        raise NotImplementedError("the delay feedback chain with a radix "
+                                  "larger than 2 is the decimation in "
+                                  "frequency pipeline, it needs ordering='dif'")
     if stages < 0:
         raise ValueError(f"stages must not be negative, got {stages}")
     if parallel != 1:
@@ -243,6 +249,16 @@ def Fft(width: int = 16,
                                       in_valid=io.in_valid,
                                       in_real=io.in_real, in_imag=io.in_imag,
                                       out_ready=io.out_ready)
+                elif pipeline_style == "sdf" and mixed_radix:
+                    # the delay feedback chain with a butterfly of the radix
+                    # the configuration asks for
+                    core = FftSdfRadix(width=width, points=points,
+                                       radices=radices, scaling=scaling)(
+                                           clk=io.clk, rst=io.rst,
+                                           in_valid=io.in_valid,
+                                           in_real=io.in_real,
+                                           in_imag=io.in_imag,
+                                           out_ready=io.out_ready)
                 elif pipeline_style == "sdf":
                     # the single path delay feedback architecture
                     core = FftSdf(width=width, points=points,
