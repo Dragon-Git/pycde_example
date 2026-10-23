@@ -52,6 +52,10 @@ _STRESS_MANIFEST = os.environ.get("FFT_STRESS_MANIFEST")
 if _STRESS_MANIFEST:
     import json
 
+    # absolute, because the manifest is read again by the cocotb process of every
+    # configuration, whose working directory is that configuration's build
+    # directory and not the repository root
+    _STRESS_MANIFEST = os.path.abspath(_STRESS_MANIFEST)
     with open(_STRESS_MANIFEST, encoding="utf-8") as _handle:
         for _entry in json.load(_handle):
             RTL_SPECS[_entry["test_module"]] = (
