@@ -217,11 +217,19 @@ async def receive_frame(dut, points: int, width: int,
     """
     result = []
     for _ in range(timeout):
-        await RisingEdge(dut.clk)
+        # Sample just before the edge, which is the moment the design sees the
+        # handshake.  After `await RisingEdge` the signals already describe the
+        # following cycle, and reading them there counts a sample the design has
+        # not taken yet - which is invisible at thirty two points and is the whole
+        # difference at two, where a frame is two cycles long.
         await Timer(1, units="ps")
-        if int(dut.out_valid.value) == 1 and int(dut.out_ready.value) == 1:
-            result.append((to_signed(int(dut.out_real.value), width),
-                           to_signed(int(dut.out_imag.value), width)))
+        out_valid = int(dut.out_valid.value)
+        out_ready = int(dut.out_ready.value)
+        sample = (to_signed(int(dut.out_real.value), width),
+                  to_signed(int(dut.out_imag.value), width))
+        await RisingEdge(dut.clk)
+        if out_valid == 1 and out_ready == 1:
+            result.append(sample)
             if len(result) == points:
                 return result
     raise AssertionError(f"the FFT did not produce a result, collected "
