@@ -212,6 +212,30 @@ FFT_CONFIGS: list[dict] = [
     # the multi path delay commutator with a radix 4 chain
     _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
             pipeline_style="mdc", stages=1, radices="2,4"),
+
+    # the shapes the vectors are checked against, at the level of the generated
+    # RTL as well: a mixed list whose first stage is larger, and the
+    # decompositions which start with the radix 2 stage the multi path
+    # architectures are built around
+    _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdf", stages=1, radices="4,2"),
+    _config(width=16, points=16, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdf", stages=1, radices="2,4,2"),
+    _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdc", stages=1, radices="8"),
+    _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdc", stages=1, radices="4,2"),
+    _config(width=16, points=16, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdc", stages=1, radices="2,4,2"),
+    _config(width=16, points=16, ordering="dif", eval_mode="pipelined",
+            pipeline_style="mdf", stages=1, radices="2,8"),
+    _config(width=16, points=16, ordering="dif", eval_mode="pipelined",
+            pipeline_style="mdc", stages=1, radices="2,8"),
+    # a datapath which does not scale the stages, where the width allows it
+    _config(width=24, points=16, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdf", stages=1, scaling="none", radices="4"),
+    _config(width=24, points=16, ordering="dif", eval_mode="pipelined",
+            pipeline_style="unrolled", stages=1, scaling="none"),
     # the multi path delay commutator: the same split, chains of the other kind
     _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
             pipeline_style="mdc", stages=1),

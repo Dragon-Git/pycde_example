@@ -24,6 +24,8 @@ import numpy as np
 
 sys.path.insert(0, ".")
 
+from pycde_example.fft_mdc_model import mdc
+from pycde_example.fft_mdf_model import mdf
 from pycde_example.fft_model import fft, to_fixed
 from pycde_example.fft_radix_model import fft_mixed
 from pycde_example.fft_sdc_radix_model import sdc_radix
@@ -130,30 +132,44 @@ def main() -> int:
     for points, radices in ((4, "4"), (16, "4"), (64, "4"), (8, "8"),
                             (64, "8"), (8, "4,2"), (8, "2,4"), (16, "4,4"),
                             (16, "8,2"), (16, "2,8")):
-        if not report("fft_mixed", points, width, radices,
-                      lambda f, n=points, r=radices: fft_mixed(
-                          f, width, n, r, dit=False)):
-            failures += 1
-        if not report("sdf_radix", points, width, radices,
-                      lambda f, n=points, r=radices: sdf_radix(f, width, n, r)):
-            failures += 1
-        if not report("sdc_radix", points, width, radices,
-                      lambda f, n=points, r=radices: sdc_radix(f, width, n, r)):
-            failures += 1
+        for name, compute in (
+            ("fft_mixed", lambda f, n=points, r=radices: fft_mixed(
+                f, width, n, r, dit=False)),
+            ("sdf_radix", lambda f, n=points, r=radices: sdf_radix(
+                f, width, n, r)),
+            ("sdc_radix", lambda f, n=points, r=radices: sdc_radix(
+                f, width, n, r)),
+        ):
+            if not report(name, points, width, radices, compute):
+                failures += 1
+        # the multi path architectures exist only where the first stage splits
+        # the frame, and that stage is a radix 2 one
+        if radices.split(",")[0] == "2":
+            for name, compute in (
+                ("mdf", lambda f, n=points, r=radices: mdf(
+                    f, width, n, radices=r)),
+                ("mdc", lambda f, n=points, r=radices: mdc(
+                    f, width, n, radices=r)),
+            ):
+                if not report(name, points, width, radices, compute):
+                    failures += 1
 
     print()
     print("the topologies against each other, bit for bit")
     for points, radices in ((16, "4"), (16, "4,4"), (8, "8"), (8, "4,2"),
-                            (16, "8,2")):
+                            (16, "8,2"), (8, "2,4"), (16, "2,8")):
         for label, frame in frames(points, width):
             mixed = fft_mixed(frame, width, points, radices, dit=False)
-            delay = sdf_radix(frame, width, points, radices)
-            commutator = sdc_radix(frame, width, points, radices)
-            if not (mixed == delay == commutator):
+            answer = {"sdf": sdf_radix(frame, width, points, radices),
+                      "sdc": sdc_radix(frame, width, points, radices)}
+            if radices.split(",")[0] == "2":
+                answer["mdf"] = mdf(frame, width, points, radices=radices)
+                answer["mdc"] = mdc(frame, width, points, radices=radices)
+            wrong = [name for name, got in answer.items() if got != mixed]
+            if wrong:
                 failures += 1
                 print(f"  radices={radices:6s} N={points:3d} [{label}]: "
-                      f"mixed vs sdf {mixed != delay}, "
-                      f"sdf vs sdc {delay != commutator}")
+                      f"differs from mixed: {wrong}")
 
     print()
     print("every model agrees with the golden and with the others"

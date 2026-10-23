@@ -30,6 +30,8 @@ import numpy as np
 import pytest
 
 from .fft_golden import deviation, deviations, golden, truncation_bound
+from .fft_mdc_model import mdc
+from .fft_mdf_model import mdf
 from .fft_model import fft
 from .fft_radix_model import expand_radices, fft_mixed
 from .fft_sdc_radix_model import sdc_radix
@@ -124,18 +126,56 @@ def vectors(points: int):
     yield "full scale", full_scale(points)
 
 
+def multi_path_radices(radices: str, points: int) -> str:
+    """The radices a multi path architecture is given for this decomposition.
+
+    Its first stage is the one which splits the frame, and it is a radix 2 one
+    because that is the butterfly of the first stage of the decimation in
+    frequency.  A decomposition whose first stage is larger cannot be built as a
+    multi path architecture at all - the two halves have to meet in exactly one
+    stage and a radix 4 stage would make them meet in four - so those are skipped
+    rather than renamed into a different decomposition.
+    """
+    if expand_radices(radices, points)[0] != 2:
+        raise ValueError(f"{radices!r} does not start with the stage which "
+                         f"splits the frame")
+    return radices
+
+
 def models(frame: list[tuple[int, int]], points: int, radices: str):
     """Every model which computes this decomposition."""
-    return {
+    result = {
         "fft": fft(frame, WIDTH, points, dit=False),
         "mixed": fft_mixed(frame, WIDTH, points, radices, dit=False),
         "sdf": sdf_radix(frame, WIDTH, points, radices),
         "sdc": sdc_radix(frame, WIDTH, points, radices),
     }
+    # The multi path architectures start with a radix 2 stage which splits the
+    # frame; a decomposition which starts with a larger radix is the same
+    # transform but not one of them, so it is skipped rather than renamed.
+    try:
+        multi = multi_path_radices(radices, points)
+    except ValueError:
+        return result
+    result["mdf"] = mdf(frame, WIDTH, points, radices=multi)
+    result["mdc"] = mdc(frame, WIDTH, points, radices=multi)
+    return result
 
 
-RADICES = [("2", 4), ("2", 8), ("2", 16), ("2", 32), ("2", 64),
-           ("4", 16), ("4", 64), ("8", 8), ("4,2", 8), ("4,4", 16)]
+# Every shape the generator accepts: a single radix repeated, a mixed list in
+# both orders, and the decompositions which start with the radix 2 stage that the
+# multi path architectures are built around.
+RADICES = [
+    # a single radix, repeated
+    ("2", 4), ("2", 8), ("2", 16), ("2", 32), ("2", 64),
+    ("4", 4), ("4", 16), ("4", 64),
+    ("8", 8), ("8", 64),
+    # the multi path shapes: a radix 2 split, then the chains
+    ("2,4", 8), ("2,8", 16), ("2,4,2", 16),
+    # a mixed list whose first stage is larger, which only the single path
+    # architectures can build
+    ("4,2", 8), ("4,8", 32), ("8,2", 16), ("4,4", 16), ("4,2,2", 16),
+]
 
 
 def allowed_for(radices: str, points: int) -> float:
@@ -177,10 +217,16 @@ def test_the_vectors_which_the_golden_says_are_exact_are_exact(radices, points):
             # The input is rounded to the fixed point format before the
             # transform sees it, so a vector whose answer is an integer can still
             # come out a unit away: that unit is the input, not the datapath.
-            # A butterfly of radix 8 adds one more, because it rotates by forty
-            # five degrees and that table entry is a fraction of a unit short of
-            # the angle - a property of the format, not of this transform.
-            ceiling = 2.5 if max(expand_radices(radices, points)) >= 8 else 1.5
+            #
+            # A stage of radix 8 adds more, and the amount follows from the
+            # format: it rotates by forty five degrees, whose table entry is
+            # 23170/32768 of the angle instead of 0.70710678, so every term of
+            # that butterfly is about a quarter of a unit short and the eight
+            # terms add up to two.  Two such stages were measured at eight, so
+            # the allowance is four per stage of radix 8 plus one for the input.
+            stages = expand_radices(radices, points)
+            eighths = sum(1 for radix in stages if radix >= 8)
+            ceiling = 1.5 + 4.0 * eighths
             assert worst <= ceiling, (
                 f"{label} through {name} ({radices}) is off by {worst:.2f} "
                 f"where the golden says the answer is exact")
@@ -206,8 +252,9 @@ def test_the_topologies_agree_on_every_vector(radices, points):
     for label, frame in vectors(points):
         results = models(frame, points, radices)
         base = results["mixed"]
-        for name in ("sdf", "sdc"):
-            assert results[name] == base, f"{label}: {name} differs from mixed"
+        for name in ("sdf", "sdc", "mdf", "mdc"):
+            if name in results:
+                assert results[name] == base, f"{label}: {name} differs"
 
 
 @pytest.mark.parametrize("radices,points", [("4", 16), ("8", 8), ("2", 16),
