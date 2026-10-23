@@ -284,10 +284,21 @@ def fft(samples: list[tuple[int, int]], width: int, points: int,
         """Multiply a complex number with the twiddle factor of ``index``."""
         if twiddle_mode == "rom":
             return apply_twiddle(index, re, im, width, points, inverse)
-        if twiddle_mode == "no_mem_logic":
-            # the gates realise the table entry, so the trivial factors are the
-            # exact ones and the multiplication is the table's
-            return apply_twiddle(index, re, im, width, points, inverse)
+        if twiddle_mode in ("no_mem_cascade", "no_mem_logic"):
+            # The butterfly bypasses a factor which is a trivial one by value:
+            # the format cannot hold +1.0 or -j, so a table and a cascade both
+            # emit their one-unit-short form and the datapath recognises them.
+            # Both structures therefore follow the same rule as the table for
+            # the trivial factors and multiply for the rest.
+            w_re, w_im = get_twiddle(index)
+            maximum = (1 << (width - 1)) - 1
+            if w_re == maximum and w_im == 0:
+                return (re, im)
+            if w_re == 0 and w_im == -maximum:
+                return (im, wrap(-re, width))
+            if w_re == 0 and w_im == maximum:
+                return (wrap(-im, width), re)
+            return complex_multiply(w_re, w_im, re, im, width)
         # the CORDIC produces its own factors, they are all non trivial
         w_re, w_im = get_twiddle(index)
         return complex_multiply(w_re, w_im, re, im, width)
