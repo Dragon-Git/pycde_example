@@ -91,7 +91,7 @@ according to the configuration:
 |-----------|--------|---------|
 | `width` | any width >= 8 | the width of the two's complement datapath, a real number `v` is represented by `round(v * 2**(width - 1))` |
 | `points` | a power of two | the number of points of the transform |
-| `radices` | `"2"` | the radices of the transform |
+| `radices` | `"2"`, `"4"`, `"8"`, `"4,2"`, ... | the radices of the transform as a comma separated list whose product is `points`; a radix larger than 2 is supported by the unrolled pipeline (`pipeline_style="unrolled"`) only |
 | `eval_mode` | `"memory_based"`, `"pipelined"` | `"memory_based"`: the transform is computed iteratively, the intermediate results stay in the frame memory (`log2(points)` passes of `points / 2` butterflies).  `"pipelined"`: the transform is unrolled, every radix-2 stage has its own butterflies |
 | `pipeline_style` | `"unrolled"`, `"sdf"`, `"sdc"`, `"mdf"`, `"mdc"` | the sub topology of the pipelined architecture: `"unrolled"` gives every stage its own butterflies and unrolls the transform, the single path delay feedback (`"sdf"`) and the single path delay commutator (`"sdc"`) fold it into a chain of stages, and the multi path (`"mdf"`, `"mdc"`) ones split the frame and transform the halves in two chains side by side, on delay feedback or on delay commutator chains |
 | `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced (the memory based architecture only, the pipelined ones use constant factors): a table, a CORDIC, a coarse CORDIC with a correction table, or - not implemented - no memory at all |
@@ -240,9 +240,24 @@ the topologies, and the multi path modules currently inherit a bank from each of
 the single path modules they instantiate on top of their own, which is redundant
 and could be removed.
 
-Not implemented yet: the radix 4 (and larger) butterflies, the mixed radix
-and split radix transforms, the block floating point format and the twiddle
-factors without a memory (`twiddle_mode="no_mem"`).  The parameters are already
+A stage of radix `R` combines `R` samples which are `length / R` apart, applies
+an `R` point transform to them and rotates the result.  Writing `R = 2` gives
+back the radix 2 stage, so `radices="2,2,2"` is the same pipeline as
+`radices="2"` - and the mixed radix model is checked to be bit exact with the
+radix 2 one, which is what makes the generalisation trustworthy.  The
+decomposition is in `fft_radix_model.py`, the pipeline builds one stage per
+radix: `radices="4"` on 16 points replaces two radix 2 stages.
+
+The `R` point transform inside a butterfly is the one place where the roots of
+unity `+1`, `-1` and `-j` are needed inside a stage, and they are applied
+exactly, for the reason the twiddles are: the table cannot hold them.  A radix 4
+butterfly therefore needs no multiplier at all, a radix 8 one only for the
+eighth roots which are neither.
+
+Not implemented yet: the split radix transform, the block floating point format
+and the twiddle factors without a memory (`twiddle_mode="no_mem"`).  A radix
+larger than 2 is wired into the unrolled pipeline only; the other architectures
+have a radix 2 butterfly hard wired in their stages.  The parameters are already
 part of the interface, they raise a `NotImplementedError` for the
 configurations which are not supported yet.
 

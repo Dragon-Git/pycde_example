@@ -174,6 +174,29 @@ async def drive_with_backpressure(dut, frames, width: int) -> list[list[tuple[in
                          f" collected {len(results)} of {len(frames)} spectra")
 
 
+def mixed_radix_reference(params, width, points, dit, scaled, inverse,
+                          twiddle_mode):
+    """The reference model of a configuration.
+
+    A radix larger than 2 is modelled by the mixed radix model, which is bit
+    exact with the radix 2 one when every radix is 2 - so the radices only pick
+    the model, they do not change the arithmetic.
+    """
+    from .fft_radix_model import fft_mixed, parse_radices
+
+    radices = params.get("radices", "2")
+    if not any(radix != 2 for radix in parse_radices(radices)):
+        if inverse:
+            return lambda frame: fft_inverse(frame, width, points, dit=dit,
+                                             scale=scaled)
+        return lambda frame: fft(frame, width, points, dit=dit, scale=scaled,
+                                 twiddle_mode=twiddle_mode)
+    if inverse:
+        raise NotImplementedError("the inverse transform is radix 2 only")
+    return lambda frame: fft_mixed(frame, width, points, radices, dit=dit,
+                                   scale=scaled, twiddle_mode=twiddle_mode)
+
+
 def make_streaming_fft_tests(**params):
     """Create the cocotb tests of a streaming FFT configuration.
 
@@ -190,17 +213,12 @@ def make_streaming_fft_tests(**params):
     # the stages of the datapath are scaled unless the configuration says
     # otherwise; the reference model has to be told the same
     scaled = params.get("scaling", "stage") == "stage"
-    def reference(frame):
-        """The expected result of the transform.
-
-        Every architecture is compared bit for bit against the reference
-        model: the trivial twiddle factors are applied exactly there, the way
-        the RTL applies them.
-        """
-        if inverse:
-            return fft_inverse(frame, width, points, dit=dit, scale=scaled)
-        return fft(frame, width, points, dit=dit, scale=scaled,
-                   twiddle_mode=twiddle_mode)
+    # The reference is the radix 2 model unless a radix is larger than 2, in
+    # which case the mixed radix one is used; the two agree bit for bit when
+    # every radix is 2.  Both apply the trivial twiddle factors exactly, the
+    # way the RTL applies them.
+    reference = mixed_radix_reference(params, width, points, dit, scaled,
+                                      inverse, twiddle_mode)
 
     async def stream_frames(dut, frames):
         """Send the frames back to back.
@@ -412,12 +430,9 @@ def make_fft_tests(**params):
     twiddle_mode = params.get("twiddle_mode", "rom")
     scaled = params.get("scaling", "stage") == "stage"
 
-    def reference(frame):
-        """The expected result of the transform."""
-        if inverse:
-            return fft_inverse(frame, width, points, dit=dit, scale=scaled)
-        return fft(frame, width, points, dit=dit, scale=scaled,
-                   twiddle_mode=twiddle_mode)
+    # the reference of the configuration, radix 2 or mixed radix
+    reference = mixed_radix_reference(params, width, points, dit, scaled,
+                                      inverse, twiddle_mode)
 
     @cocotb.test()
     async def test_fft(dut):

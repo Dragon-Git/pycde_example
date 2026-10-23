@@ -95,7 +95,6 @@ try:
         FFT_CONFIGS,
         ORDERINGS,
         PIPELINE_STYLES,
-        RADICES,
         SCALINGS,
         TWIDDLE_MODES,
         fft_name,
@@ -104,6 +103,7 @@ try:
     from pycde_example.fft_mdf import FftMdf
     from pycde_example.fft_memory import FrameMemory
     from pycde_example.fft_pipelined import FftPipelined
+    from pycde_example.fft_radix_model import parse_radices, radix_size
     from pycde_example.fft_sdc import FftSdc
     from pycde_example.fft_sdf import FftSdf
     from pycde_example.fft_twiddle import Twiddle
@@ -123,6 +123,7 @@ except ImportError:  # executed as a plain script ("python pycde_example/fft.py"
     from fft_mdf import FftMdf
     from fft_memory import FrameMemory
     from fft_pipelined import FftPipelined
+    from fft_radix_model import parse_radices, radix_size
     from fft_sdc import FftSdc
     from fft_sdf import FftSdf
     from fft_twiddle import Twiddle
@@ -161,8 +162,21 @@ def Fft(width: int = 16,
         raise ValueError(f"points must be a power of two, got {points}")
     if width < 8:
         raise ValueError(f"width must be at least 8, got {width}")
-    if radices not in RADICES:
-        raise NotImplementedError(f"the radices {radices!r} are not implemented yet")
+    # The radices are a list whose product is the number of points.  Only the
+    # unrolled pipeline is written for a radix larger than 2 so far: the other
+    # architectures have a radix 2 butterfly hard wired in their stages.
+    radix_list = parse_radices(radices)
+    if radix_size(radix_list) != points:
+        raise ValueError(f"the radices {radices!r} describe "
+                         f"{radix_size(radix_list)} points, but the transform "
+                         f"has {points}")
+    mixed_radix = any(radix != 2 for radix in radix_list)
+    if mixed_radix and not (eval_mode == "pipelined"
+                            and pipeline_style == "unrolled"):
+        raise NotImplementedError(
+            f"a radix larger than 2 is only implemented for the unrolled "
+            f"pipeline so far, got the radices {radices!r} with "
+            f"{eval_mode!r} and {pipeline_style!r}")
     if data_format == "block_float":
         raise NotImplementedError("the block floating point format is not "
                                   "implemented yet")
@@ -260,7 +274,7 @@ def Fft(width: int = 16,
                 else:
                     core = FftPipelined(width=width, points=points,
                                         ordering=ordering, stages=stages,
-                                        scaling=scaling)(
+                                        scaling=scaling, radices=radices)(
                                             clk=io.clk, rst=io.rst,
                                             in_valid=io.in_valid,
                                             in_real=io.in_real,

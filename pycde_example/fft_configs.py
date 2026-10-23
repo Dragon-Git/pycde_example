@@ -15,7 +15,10 @@ TWIDDLE_MODES = ("rom", "cordic", "hybrid", "no_mem")
 DATA_FORMATS = ("fixed", "block_float")
 SCALINGS = ("stage", "none")
 ORDERINGS = ("dit", "dif")
-RADICES = ("2",)
+# The radices are a comma separated list whose product is the number of
+# points, e.g. "2", "4" or "4,2".  A radix larger than 2 is supported by
+# the unrolled pipeline only.
+RADICES = ("2", "4", "8", "4,2", "8,2")
 
 _ARCH_TAG = {
     "memory_based": "Memory",
@@ -43,6 +46,11 @@ _ORDERING_TAG = {
 }
 
 
+def radix_tag(radices: str) -> str:
+    """The radices as they appear in a name: no comma, so "4,2" is "4x2"."""
+    return radices.replace(",", "x")
+
+
 def fft_name(width: int, points: int, radices: str, eval_mode: str,
              pipeline_style: str, twiddle_mode: str, data_format: str,
              scaling: str, stages: int, inverse: bool, ordering: str,
@@ -54,7 +62,7 @@ def fft_name(width: int, points: int, radices: str, eval_mode: str,
         # a memory based design after it would be misleading
         name += _PIPELINE_TAG[pipeline_style]
     name += (f"{_TWIDDLE_TAG[twiddle_mode]}{_ORDERING_TAG[ordering]}"
-             f"R{radices}W{width}P{points}")
+             f"R{radix_tag(radices)}W{width}P{points}")
     if stages != 1:
         name += f"St{stages}"
     if data_format != "fixed":
@@ -74,7 +82,7 @@ def test_module_name(params: dict) -> str:
     if params["eval_mode"] == "pipelined":
         # the sub topology of the pipelined architecture
         name += f"_{params['pipeline_style']}"
-    name += (f"_{params['ordering']}_r{params['radices']}"
+    name += (f"_{params['ordering']}_r{radix_tag(params['radices'])}"
              f"_w{params['width']}_p{params['points']}")
     if params["twiddle_mode"] != "rom":
         name += f"_{params['twiddle_mode']}"
@@ -166,6 +174,21 @@ FFT_CONFIGS: list[dict] = [
             pipeline_style="mdf", stages=1),
     _config(width=16, points=32, ordering="dif", eval_mode="pipelined",
             pipeline_style="mdf", stages=1),
+    # a radix 4 pipeline: half the stages of the radix 2 one, and the
+    # butterfly of a stage needs no multiplier at all
+    _config(width=16, points=4, ordering="dif", eval_mode="pipelined",
+            pipeline_style="unrolled", stages=1, radices="4"),
+    _config(width=16, points=16, ordering="dif", eval_mode="pipelined",
+            pipeline_style="unrolled", stages=1, radices="4"),
+    _config(width=16, points=16, ordering="dit", eval_mode="pipelined",
+            pipeline_style="unrolled", stages=1, radices="4"),
+    # a mixed radix pipeline: the last stage is the small one
+    _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
+            pipeline_style="unrolled", stages=1, radices="4,2"),
+    # a radix 8 pipeline: one stage of eight, the butterfly needs the
+    # eighth roots of unity
+    _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
+            pipeline_style="unrolled", stages=1, radices="8"),
     # the multi path delay commutator: the same split, chains of the other kind
     _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
             pipeline_style="mdc", stages=1),

@@ -1,9 +1,14 @@
 """The pipelined architecture of the FFT.
 
-The whole transform is unrolled: every radix-2 stage has its own butterflies
-and the stages are separated by registers, the number of registers is the
-number of pipeline stages.  The architecture needs ``log2(points)`` stages with
-their butterflies, it trades the area for the throughput.
+The whole transform is unrolled: every stage has its own butterflies and the
+stages are separated by registers, the number of registers is the number of
+pipeline stages.  The architecture needs one stage per radix, it trades the area
+for the throughput.
+
+A stage of radix ``R`` combines ``R`` samples which are ``length / R`` apart,
+applies an ``R`` point transform to them and rotates the result, which is the
+mixed radix decomposition of :mod:`fft_radix_model`.  With ``radices="2"`` this
+is the radix 2 pipeline, and the arithmetic is the same as before.
 
 The frame is received into a register array, the transform is computed and the
 result is read out of the last stage.
@@ -18,23 +23,36 @@ from pycde.signals import ArraySignal
 from pycde.types import Bits, SInt, UInt
 
 from .fft_model import twiddle_table
+from .fft_radix_model import mixed_reverse, parse_radices, radix_size
 
 
 @modparams
 def FftPipelined(width: int = 16, points: int = 16, ordering: str = "dit",
-                 stages: int = 1, scaling: str = "stage"):
+                 stages: int = 1, scaling: str = "stage", radices: str = "2"):
     """The pipelined (unrolled) architecture of the FFT."""
-    levels = points.bit_length() - 1
+    radix_list = parse_radices(radices)
+    if radix_size(radix_list) != points:
+        raise ValueError(f"the radices {radices!r} describe "
+                         f"{radix_size(radix_list)} points, not {points}")
     count_width = max(1, (points - 1).bit_length())
     table = twiddle_table(points, width)
     dit = ordering == "dit"
-    # the number of cycles the transform needs
-    latency = max(1, levels * stages)
+    # the number of cycles the transform needs, one per stage and register
+    latency = max(1, len(radix_list) * stages)
     delay_width = max(1, latency.bit_length())
 
-    def permute(index: int) -> int:
-        """The bit reversed index."""
-        return int(f"{index:0{levels}b}"[::-1], 2)
+    # The permutation of a mixed radix transform follows the order the stages
+    # run in: the decimation in time reads the samples in it, the decimation in
+    # frequency writes the result in it.
+    read_radices = list(reversed(radix_list)) if dit else list(radix_list)
+
+    def permute_read(index: int) -> int:
+        """The position the sample of index ``index`` is read from."""
+        return mixed_reverse(index, read_radices)
+
+    def permute_write(index: int) -> int:
+        """The position the result of index ``index`` is written to."""
+        return mixed_reverse(index, radix_list)
 
     class FftPipelined(Module):
         clk = Clock()
@@ -137,67 +155,113 @@ def FftPipelined(width: int = 16, points: int = 16, ordering: str = "dit",
 
             # the decimation in time reads the frame bit reversed, the
             # decimation in frequency writes it bit reversed
-            values_re = [in_re[permute(i) if dit else i] for i in range(points)]
-            values_im = [in_im[permute(i) if dit else i] for i in range(points)]
+            values_re = [in_re[permute_read(i) if dit else i] for i in range(points)]
+            values_im = [in_im[permute_read(i) if dit else i] for i in range(points)]
 
             # ------------------------------------------------------------------
             # the transform
             # ------------------------------------------------------------------
-            # the decimation in frequency processes the large butterflies first
-            stage_order = range(levels) if dit else reversed(range(levels))
-            for s in stage_order:
-                half = 1 << s
-                step = points >> (s + 1)
+            def radix_dft(values):
+                """The ``R`` point transform inside a stage of radix ``R``.
+
+                The roots of unity which are trivial are applied exactly: a
+                table cannot hold +1.0 or -1.0 in the fixed point format, so
+                multiplying with an entry a unit short of them would cost a
+                unit of the last bit inside every butterfly.
+                """
+                size = len(values)
+                if size == 2:
+                    (a_re, a_im), (b_re, b_im) = values
+                    return [((a_re + b_re).as_sint(width),
+                             (a_im + b_im).as_sint(width)),
+                            ((a_re - b_re).as_sint(width),
+                             (a_im - b_im).as_sint(width))]
+                roots = twiddle_table(size, width)
+                results = []
+                for out_index in range(size):
+                    acc_re = None
+                    acc_im = None
+                    for in_index in range(size):
+                        exponent = (in_index * out_index) % size
+                        re, im = values[in_index]
+                        if exponent == 0:
+                            term_re, term_im = re, im
+                        elif exponent == size // 4:
+                            # -j: a swap with a negation
+                            term_re, term_im = im, negate(re)
+                        elif exponent == size // 2:
+                            # -1: a negation
+                            term_re, term_im = negate(re), negate(im)
+                        else:
+                            # W**(size - k) is the conjugate of W**k, so the
+                            # table only has to hold the first half
+                            folded = (exponent if exponent <= size // 2
+                                      else size - exponent)
+                            w_re = SInt(width)(roots[folded % (size // 2)][0])
+                            w_im = SInt(width)(roots[folded % (size // 2)][1])
+                            if exponent > size // 2:
+                                w_im = negate(w_im)
+                            term_re, term_im = complex_multiply(w_re, w_im,
+                                                                re, im)
+                        if acc_re is None:
+                            acc_re, acc_im = term_re, term_im
+                        else:
+                            acc_re = (acc_re + term_re).as_sint(width)
+                            acc_im = (acc_im + term_im).as_sint(width)
+                    results.append((acc_re, acc_im))
+                return results
+
+            # The decimation in frequency works the large butterflies first, the
+            # decimation in time the small ones; `length` is the size of the
+            # block a stage works on.
+            stage_list = list(reversed(radix_list)) if dit else list(radix_list)
+            length = 1 if dit else points
+            for stage_index, radix in enumerate(stage_list):
+                if dit:
+                    length *= radix
+                sub = length // radix
+                scale_shift = radix.bit_length() - 1
                 new_re = []
                 new_im = []
                 for i in range(points):
-                    # the partner of the sample i is the sample i + half
-                    first = (i % (2 * half)) < half
-                    partner = i + half if first else i - half
-                    a_re = values_re[i]
-                    a_im = values_im[i]
-                    b_re = values_re[partner]
-                    b_im = values_im[partner]
-                    # u is the first element of the pair, v the second one
-                    u_re, u_im = (a_re, a_im) if first else (b_re, b_im)
-                    v_re, v_im = (b_re, b_im) if first else (a_re, a_im)
-                    if scaling == "stage":
-                        # the operands are halved before they are added
-                        u_re = shift_right(u_re, 1)
-                        u_im = shift_right(u_im, 1)
-                        v_re = shift_right(v_re, 1)
-                        v_im = shift_right(v_im, 1)
-                    if dit:
-                        # the twiddle multiplies the second element of the pair
-                        (t_re, t_im) = rotate((i % half) * step, v_re, v_im)
-                        sum_re = (u_re + t_re).as_sint(width)
-                        sum_im = (u_im + t_im).as_sint(width)
-                        diff_re = (u_re - t_re).as_sint(width)
-                        diff_im = (u_im - t_im).as_sint(width)
-                    else:
-                        # the twiddle multiplies the output of the butterfly
-                        sum_re = (u_re + v_re).as_sint(width)
-                        sum_im = (u_im + v_im).as_sint(width)
-                        diff_re = (u_re - v_re).as_sint(width)
-                        diff_im = (u_im - v_im).as_sint(width)
-                        (diff_re, diff_im) = rotate((i % half) * step,
-                                                    diff_re, diff_im)
-                    if first:
-                        new_re.append(sum_re)
-                        new_im.append(sum_im)
-                    else:
-                        new_re.append(diff_re)
-                        new_im.append(diff_im)
+                    local = i % length
+                    base = i - local
+                    j = local % sub
+                    r = local // sub
+                    values = []
+                    for l in range(radix):
+                        re = values_re[base + j + l * sub]
+                        im = values_im[base + j + l * sub]
+                        if scaling == "stage":
+                            # the operands are scaled by 1 / R, which is what
+                            # the stage costs in bit width
+                            re = shift_right(re, scale_shift)
+                            im = shift_right(im, scale_shift)
+                        if dit and l:
+                            # the twiddle belongs to the input of the butterfly
+                            re, im = rotate((j * l * (points // length))
+                                            % points, re, im)
+                        values.append((re, im))
+                    transformed = radix_dft(values)
+                    re, im = transformed[r]
+                    if not dit and r:
+                        # the twiddle belongs to the result of the butterfly
+                        re, im = rotate((j * r * (points // length)) % points,
+                                        re, im)
+                    new_re.append(re)
+                    new_im.append(im)
 
                 # the pipeline registers between the stages
                 for _ in range(stages):
                     for i in range(points):
                         new_re[i] = new_re[i].reg(io.clk, io.rst, ce=computing,
-                                                  name=f"stage{s}_re_{i}")
+                                                  name=f"stage{stage_index}_re_{i}")
                         new_im[i] = new_im[i].reg(io.clk, io.rst, ce=computing,
-                                                  name=f"stage{s}_im_{i}")
+                                                  name=f"stage{stage_index}_im_{i}")
                 values_re = new_re
                 values_im = new_im
+                if not dit:
+                    length = sub
 
             # ------------------------------------------------------------------
             # the control flow
@@ -239,10 +303,14 @@ def FftPipelined(width: int = 16, points: int = 16, ordering: str = "dit",
             # the decimation in frequency produces the spectrum bit reversed
             out_index = out_count.as_uint()
             if not dit:
+                # the result of the decimation in frequency is read from the
+                # permuted position; the permutation is looked up directly,
+                # since a mixed radix one is not its own inverse
                 out_index = UInt(count_width)(0)
                 for i in range(points):
-                    out_index = mux(out_count == UInt(count_width)(permute(i)),
-                                    UInt(count_width)(i), out_index)
+                    out_index = mux(out_count == UInt(count_width)(i),
+                                    UInt(count_width)(permute_write(i)),
+                                    out_index)
             # the spectrum is read out of the last stage
             out_array_re = ArraySignal.create(values_re)
             out_array_im = ArraySignal.create(values_im)
