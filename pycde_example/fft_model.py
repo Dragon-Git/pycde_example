@@ -116,6 +116,13 @@ def apply_twiddle(index: int, re: int, im: int, width: int, points: int,
         # butterfly, and the table is one unit short of it for the same reason
         # it is one unit short of +1.0
         return (wrap(-re, width), wrap(-im, width))
+    if points >= 4 and index % points == 3 * points // 4:
+        # +j, the conjugate of -j: a radix 2 stage never rotates by it, so its
+        # absence went unnoticed until a butterfly of radix 4 needed it - and
+        # falling through to the table multiplies by 32767/32768 and costs a
+        # unit of the last bit, exactly what the trivial cases are here to
+        # avoid
+        return (wrap(-im, width), re)
     table = twiddle_table(points, width)
     # The table holds the first half of the factors; the rest follow from the
     # conjugation symmetry W**(N - k) = conj(W**k), which a mixed radix stage

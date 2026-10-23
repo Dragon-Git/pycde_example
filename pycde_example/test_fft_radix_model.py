@@ -91,6 +91,25 @@ def test_a_mixed_radix_is_not_the_same_radix_order():
         assert worst <= tolerance(width, stages)
 
 
+def test_both_quarter_turns_are_exact():
+    """`-j` and `+j` are a swap and a negation, not a table entry.
+
+    A radix 2 stage only ever rotates by `-j`, so the `+j` case was missing from
+    the twiddle arithmetic until a butterfly of radix 4 needed it.  Falling
+    through to the table costs a unit of the last bit, because the entry is
+    32767/32768 of the factor it stands for.
+    """
+    from .fft_model import apply_twiddle
+    width = 16
+    for points in (4, 8, 16, 64):
+        mine = apply_twiddle(points // 4, 1000, 2000, width, points)
+        assert mine == (2000, -1000), f"-j at {points} points is {mine}"
+        plus = apply_twiddle(3 * points // 4, 1000, 2000, width, points)
+        assert plus == (-2000, 1000), f"+j at {points} points is {plus}"
+        minus = apply_twiddle(points // 2, 1000, 2000, width, points)
+        assert minus == (-1000, -2000), f"-1 at {points} points is {minus}"
+
+
 def test_parse_radices_rejects_a_radix_which_is_not_a_power_of_two():
     """The butterflies are powers of two."""
     for bad in ("3", "4,3", "0", "1"):
