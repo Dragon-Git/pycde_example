@@ -81,3 +81,34 @@ def test_the_reference_of_every_configuration_can_be_built():
         frame = [(0, 0)] * params["points"]
         result = reference(frame)
         assert len(result) == params["points"], config["name"]
+
+
+def test_every_test_module_uses_the_bench_of_its_topology():
+    """A streaming topology needs the streaming bench.
+
+    The delay commutator chains are free running: the first frame only fills them
+    and a spectrum leaves one frame late.  The frame based bench sends a frame and
+    waits for a spectrum, which against such a chain reads the spectrum of the
+    frame before it - a mistake which looks like a datapath bug and is not one.
+    The multi path architectures need the bench which expects the delay as well.
+    """
+    from pycde_example.fft_configs import FFT_CONFIGS
+
+    bench_of = {"sdc": "make_streaming_fft_tests", "mdc": "make_mdc_tests"}
+    tree_root = BENCH.parent
+    for config in FFT_CONFIGS:
+        params = config["params"]
+        style = params.get("pipeline_style", "")
+        if style not in bench_of:
+            continue
+        module = config["test_module"].split(".")[-1]
+        path = tree_root / f"{module}.py"
+        if not path.exists():
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        used = {node.attr if isinstance(node, ast.Attribute) else node.id
+                for node in ast.walk(tree) if isinstance(node, ast.Name)} | {
+            node.attr for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute)}
+        assert bench_of[style] in used, (
+            f"{module} builds a {style} but does not use {bench_of[style]}")
