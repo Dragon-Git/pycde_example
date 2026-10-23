@@ -199,8 +199,48 @@ The hybrid pays off from about 256 points on, where its table is the smallest of
 the three and it stays much closer than the plain CORDIC.  The CORDIC of this
 example stops working above a 26 bit datapath, the hybrid inherits that.
 
-Not implemented yet: the multi path delay feedback sub topology of the
-pipelined architecture, the radix 4 (and larger) butterflies, the mixed radix
+### Storage of the architectures
+
+The four pipelined topologies are named by two independent letters: `S` or `M`
+says whether the frame is split, `F` or `C` says how a path is built - `F` writes
+the difference of a butterfly back into the delay line of its stage, `C` keeps the
+data moving forward and reorders it with multiplexers.  Counting the delay line
+registers of a transform of `points` points gives four closed forms:
+
+| topology | delay line storage | `points = 16` | `points = 1024` |
+|----------|--------------------|---------------|-----------------|
+| `sdf` (single path, feedback)          | `points - 1`   | 15 | 1023 |
+| `mdf` (multi path, feedback)           | `points - 2`   | 14 | 1022 |
+| `sdc` (single path, commutator)        | `2 * points - 2` | 30 | 2046 |
+| `mdc` (multi path, commutator)         | `2 * points - 4` | 28 | 2044 |
+
+Two things are worth reading off this table.  A commutator chain needs about
+twice the storage of a feedback chain, because the feedback one reuses the
+register of a stage for the difference that the butterfly produced, while the
+commutator one keeps the data moving and needs a second line per stage to align
+it again.  And splitting the frame buys almost nothing in storage: `mdf` saves a
+single register against `sdf`, `mdc` two against `sdc`, since each of the two
+chains holds `points / 2 - 1` instead of `points - 1`.
+
+What the multi path variants buy is not storage but throughput: two chains work
+at the same time, each on half of the frame.  The implementations here do not
+cash that in - they collect a frame into registers, `points` cycles long, and
+then feed the leading butterfly in a burst of `points / 2` cycles, so a frame
+still costs about `points` cycles.  Taking the two samples of the first stage on
+the same cycle, which is what the architecture is drawn for, would halve that,
+and it is the natural next step rather than something the current code does.
+
+The numbers above are the delay lines, the part which follows from the topology.
+On top of them every implementation holds buffers which follow from its control:
+the delay feedback and delay commutator modules keep a bank of `points` words
+(and the commutator two banks, since it writes one while reading the other), and
+the multi path modules collect the frame into `points` words, because a sample
+and its partner are `points / 2` apart.  Those buffers do not differ much between
+the topologies, and the multi path modules currently inherit a bank from each of
+the single path modules they instantiate on top of their own, which is redundant
+and could be removed.
+
+Not implemented yet: the radix 4 (and larger) butterflies, the mixed radix
 and split radix transforms, the block floating point format and the twiddle
 factors without a memory (`twiddle_mode="no_mem"`).  The parameters are already
 part of the interface, they raise a `NotImplementedError` for the
