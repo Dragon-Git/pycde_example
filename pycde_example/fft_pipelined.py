@@ -202,6 +202,13 @@ def FftPipelined(width: int = 16, points: int = 16, ordering: str = "dit",
                         elif exponent == size // 2:
                             # -1: a negation
                             term_re, term_im = negate(re), negate(im)
+                        elif exponent == 3 * size // 4:
+                            # +j: the conjugate of -j, a swap the other way
+                            # round.  A radix 2 butterfly never reaches it, so
+                            # it went unnoticed until a radix 4 one did - and
+                            # falling through to the table multiplies by
+                            # 32767/32768, which costs a unit of the last bit.
+                            term_re, term_im = negate(im), re
                         else:
                             # W**(size - k) is the conjugate of W**k, so the
                             # table only has to hold the first half

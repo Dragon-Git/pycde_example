@@ -123,9 +123,13 @@ def butterfly(values: list[tuple[int, int]], width: int,
         for l, (re, im) in enumerate(values):
             rotated_re, rotated_im = apply_twiddle(
                 l * r, re, im, width, size, inverse)
-            total_re += rotated_re
-            total_im += rotated_im
-        result.append((wrap(total_re, width), wrap(total_im, width)))
+            # The accumulator of the datapath is `width` bits wide, so every
+            # partial sum is truncated: a sum of `R` terms can leave the range
+            # on the way even when the total does not, and truncating only the
+            # total would describe an adder which does not exist.
+            total_re = wrap(total_re + rotated_re, width)
+            total_im = wrap(total_im + rotated_im, width)
+        result.append((total_re, total_im))
     return result
 
 
