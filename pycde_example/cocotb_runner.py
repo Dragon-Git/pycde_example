@@ -52,10 +52,13 @@ _STRESS_MANIFEST = os.environ.get("FFT_STRESS_MANIFEST")
 if _STRESS_MANIFEST:
     import json
 
-    # absolute, because the manifest is read again by the cocotb process of every
+    # Absolute, because the manifest is read again by the cocotb process of every
     # configuration, whose working directory is that configuration's build
-    # directory and not the repository root
-    _STRESS_MANIFEST = os.path.abspath(_STRESS_MANIFEST)
+    # directory and not the repository root.  It is resolved against the
+    # repository and not against the working directory, since the workflow passes
+    # it relative to the repository.
+    if not os.path.isabs(_STRESS_MANIFEST):
+        _STRESS_MANIFEST = os.path.join(REPO_ROOT, _STRESS_MANIFEST)
     with open(_STRESS_MANIFEST, encoding="utf-8") as _handle:
         for _entry in json.load(_handle):
             RTL_SPECS[_entry["test_module"]] = (
@@ -119,8 +122,11 @@ def run_cocotb(module_name: str) -> None:
     # rather than as a missing path.
     extra_env = {"PYTHONPATH": os.pathsep.join(
         path for path in sys.path if path)}
-    if os.environ.get("FFT_STRESS_MANIFEST"):
-        extra_env["FFT_STRESS_MANIFEST"] = os.environ["FFT_STRESS_MANIFEST"]
+    if _STRESS_MANIFEST:
+        # the path was made absolute when the manifest was read, which is the
+        # value the child has to be given: the one in the environment is
+        # relative to the repository root and the child stands somewhere else
+        extra_env["FFT_STRESS_MANIFEST"] = _STRESS_MANIFEST
     runner.test(
         hdl_toplevel=rtl_name,
         hdl_toplevel_lang="verilog",
