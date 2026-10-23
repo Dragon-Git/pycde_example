@@ -372,11 +372,19 @@ def FftSdfRadix(width: int = 16, points: int = 16, radices: str = "4",
 
             # the chain hands its spectrum out permuted, the buffer is read in
             # the natural order
+            # The buffer holds the spectrum in the order the chain handed it
+            # out: the word at position `p` is the bin `mixed_reverse(p)`.  So
+            # reading the bin `i` means reading the position which holds it, and
+            # the address for `out_count == i` is that position - the permutation
+            # of `i`, not the index `i` itself set aside for the position which
+            # the permutation sends to `i`.  The two are the same list only when
+            # the permutation is its own inverse, which a uniform radix 2 or 4
+            # reversal is and a mixed list is not.
             read_addr = Bits(count_width)(0)
             for i in range(points):
-                target = mixed_reverse(i, radix_list)
-                read_addr = mux(out_count == UInt(count_width)(target),
-                                Bits(count_width)(i), read_addr)
+                read_addr = mux(out_count == UInt(count_width)(i),
+                                Bits(count_width)(mixed_reverse(i, radix_list)),
+                                read_addr)
             buf_array_re = ArraySignal.create([r.as_bits() for r in buf_re])
             buf_array_im = ArraySignal.create([r.as_bits() for r in buf_im])
 
