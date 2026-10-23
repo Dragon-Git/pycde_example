@@ -11,7 +11,8 @@ from __future__ import annotations
 
 ARCHES = ("memory_based", "pipelined")
 PIPELINE_STYLES = ("unrolled", "sdf", "sdc", "mdf", "mdc")
-TWIDDLE_MODES = ("rom", "cordic", "hybrid", "no_mem")
+TWIDDLE_MODES = ("rom", "cordic", "hybrid", "no_mem_cascade",
+                 "no_mem_logic")
 DATA_FORMATS = ("fixed", "block_float")
 SCALINGS = ("stage", "none")
 ORDERINGS = ("dit", "dif")
@@ -37,7 +38,8 @@ _TWIDDLE_TAG = {
     "rom": "Rom",
     "cordic": "Cordic",
     "hybrid": "Hybrid",
-    "no_mem": "NoMem",
+    "no_mem_cascade": "NoMemCascade",
+    "no_mem_logic": "NoMemLogic",
 }
 
 _ORDERING_TAG = {
@@ -189,6 +191,11 @@ FFT_CONFIGS: list[dict] = [
     # eighth roots of unity
     _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
             pipeline_style="unrolled", stages=1, radices="8"),
+    # the twiddle factors without a memory of their own, in both structures:
+    # a cascade of rotator cells, and the table turned into gates
+    _config(width=16, points=16, ordering="dit", twiddle_mode="no_mem_cascade"),
+    _config(width=16, points=64, ordering="dif", twiddle_mode="no_mem_cascade"),
+    _config(width=16, points=16, ordering="dit", twiddle_mode="no_mem_logic"),
     # the multi path delay commutator: the same split, chains of the other kind
     _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
             pipeline_style="mdc", stages=1),

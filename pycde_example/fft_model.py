@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import math
 
+from .cordic_model import cordic_gain
+
 #: How many bits the CORDIC of the ``hybrid`` twiddle mode carries on top of the
 #: datapath.  They are what keeps the error of the coarse rotation small: the
 #: shift-add steps truncate, and without them the correction which follows
@@ -187,7 +189,7 @@ def twiddle_hybrid(index: int, width: int, points: int,
     built from it by the quarter wave symmetry.
     """
     from .cordic_model import cordic as cordic_rotate
-    from .cordic_model import cordic_gain
+    
 
     inner = width + HYBRID_GUARD
     iterations, _ = hybrid_parts(width)
@@ -270,11 +272,21 @@ def fft(samples: list[tuple[int, int]], width: int, points: int,
     elif twiddle_mode == "hybrid":
         def get_twiddle(index: int) -> tuple[int, int]:
             return twiddle_hybrid(index, width, points, inverse)
+    elif twiddle_mode in ("no_mem_cascade", "no_mem_logic"):
+        # imported here: the memory free structures are built on this module
+        from .fft_no_mem_model import twiddle_no_mem
+
+        def get_twiddle(index: int) -> tuple[int, int]:
+            return twiddle_no_mem(index, width, points, twiddle_mode, inverse)
     else:
         raise ValueError(f"unknown twiddle mode: {twiddle_mode!r}")
     def rotate(index: int, re: int, im: int) -> tuple[int, int]:
         """Multiply a complex number with the twiddle factor of ``index``."""
         if twiddle_mode == "rom":
+            return apply_twiddle(index, re, im, width, points, inverse)
+        if twiddle_mode == "no_mem_logic":
+            # the gates realise the table entry, so the trivial factors are the
+            # exact ones and the multiplication is the table's
             return apply_twiddle(index, re, im, width, points, inverse)
         # the CORDIC produces its own factors, they are all non trivial
         w_re, w_im = get_twiddle(index)
@@ -355,7 +367,7 @@ def twiddle_cordic(index: int, width: int, points: int, iterations: int | None =
     second quadrant are built from the first ones.
     """
     from .cordic_model import cordic as cordic_rotate
-    from .cordic_model import cordic_gain
+    
 
     if iterations is None:
         iterations = cordic_iterations(width)

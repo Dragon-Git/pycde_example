@@ -39,13 +39,16 @@ from __future__ import annotations
 from pycde import Clock, Input, Module, Output, Reset, generator, modparams
 from pycde.constructs import Mux
 from pycde.dialects import comb
+from pycde.signals import BitsSignal
 from pycde.types import Bits, SInt, UInt
 
 from .cordic import Cordic
 from .cordic_model import cordic_gain
 from .fft_model import HYBRID_GUARD, HYBRID_TABLE_BITS, cordic_iterations, hybrid_table, twiddle_table
+from .fft_no_mem_model import GUARD, LOGIC_LIMIT, constant
 
-TWIDDLE_MODES = ("rom", "cordic", "hybrid", "no_mem")
+TWIDDLE_MODES = ("rom", "cordic", "hybrid", "no_mem_cascade",
+                 "no_mem_logic")
 
 
 @modparams
@@ -58,8 +61,11 @@ def Twiddle(width: int = 16, points: int = 16, mode: str = "rom",
     """
     if mode not in TWIDDLE_MODES:
         raise ValueError(f"twiddle mode must be one of {TWIDDLE_MODES}, got {mode!r}")
-    if mode == "no_mem":
-        raise NotImplementedError("the 'no_mem' twiddle mode is not implemented yet")
+    if mode == "no_mem_logic" and points > LOGIC_LIMIT:
+        raise NotImplementedError(
+            f"the logic structure is meant for a small transform, {points} "
+            f"points is past the {LOGIC_LIMIT} this implementation supports; "
+            f"the cascade ('no_mem_cascade') scales to any number of points")
 
     # the index has the same width as the address of the frame memory
     index_width = max(1, (points - 1).bit_length())
@@ -105,6 +111,41 @@ def Twiddle(width: int = 16, points: int = 16, mode: str = "rom",
                 is high, this helper uses the intuitive order.
                 """
                 return Mux(sel, when_false, when_true)
+
+            def inner_constant(index, size):
+                """The factor `W**index` as a constant of `size` bits.
+
+                It is the value the table holds at that width, computed here at
+                elaboration time and baked into the wiring.
+                """
+                return constant(index, size, points)
+
+            def saturate_from(value, size):
+                """Clamp a wide value into `size` bits.
+
+                The comparison is made in the width the value already has:
+                narrowing first would throw the overflow away before it could
+                be seen, and the clamp would never fire.
+                """
+                wide = value.type.width
+                high = SInt(wide)((1 << (size - 1)) - 1)
+                low = SInt(wide)(-((1 << (size - 1)) - 1))
+                clipped = mux((value > high).as_bits(), high,
+                              mux((value < low).as_bits(), low, value))
+                return clipped.as_sint(size)
+
+            def saturate(value, size):
+                """Clamp a value into the range of a signed `size` bit number.
+
+                The value is narrowed first, which is what the callers of a
+                wider arithmetic expect: the bound is then applied to the
+                number the datapath would hold.
+                """
+                narrow = value.as_sint(size)
+                high = SInt(size)((1 << (size - 1)) - 1)
+                low = SInt(size)(-((1 << (size - 1)) - 1))
+                return mux((narrow > high).as_bits(), high,
+                           mux((narrow < low).as_bits(), low, narrow))
 
             def hybrid_core(io):
                 """The coarse CORDIC with the correction table."""
@@ -173,23 +214,128 @@ def Twiddle(width: int = 16, points: int = 16, mode: str = "rom",
                 io.ready = Bits(1)(1)
                 io.valid = Bits(1)(1)
 
-            def saturate(value, size):
-                """Clamp to what a two's complement number of `size` bits holds.
-
-                The operand is cast to the width of the result first: it may be
-                wider (a negation adds a bit), and the two inputs of a
-                multiplexer have to have the same type.
-                """
-                narrow = value.as_sint(size)
-                high = SInt(size)((1 << (size - 1)) - 1)
-                low = SInt(size)(-((1 << (size - 1)) - 1))
-                return mux((narrow > high).as_bits(), high,
-                           mux((narrow < low).as_bits(), low, narrow))
-
             def shift_down(value, amount):
                 """An arithmetic shift right by a constant."""
                 shift = Bits(value.type.width)(amount)
                 return comb.ShrSOp(value.as_bits(), shift).as_sint()
+
+            def constant_multiply(a_re, a_im, factor_re, factor_im, size):
+                """Multiply with a constant, saturated to `size` bits.
+
+                The factor is a compile time constant, so this is a shift and
+                add chain and not a multiplier - which is what makes the
+                cascade multiplier free.
+                """
+                product_re = a_re * SInt(size)(factor_re) \
+                    - a_im * SInt(size)(factor_im)
+                product_im = a_re * SInt(size)(factor_im) \
+                    + a_im * SInt(size)(factor_re)
+                shift_bits = Bits(product_re.type.width)(size - 1)
+                wide_re = comb.ShrSOp(product_re.as_bits(),
+                                      shift_bits).as_sint(
+                                          product_re.type.width)
+                wide_im = comb.ShrSOp(product_im.as_bits(),
+                                      shift_bits).as_sint(
+                                          product_im.type.width)
+                # saturate, do not truncate: a product whose magnitude is
+                # exactly one is one unit past what the format holds, and
+                # wrapping it would flip the sign of the factor
+                return saturate_from(wide_re, size), saturate_from(wide_im, size)
+
+            def cascade_core(io):
+                """The multiplier free cascade of rotator cells.
+
+                Cell `i` rotates by the constant factor `W**(2**i)` when bit `i`
+                of the index is set, and passes through when it is not.  The
+                chain starts at the cell of the highest bit which is set: the
+                format cannot hold `+1.0`, so starting from it would cost a unit
+                of the last bit before the chain began.  The cells work in
+                `GUARD` extra bits and saturate, because a product of magnitude
+                exactly one is one unit past what the format holds.
+                """
+                inner = width + GUARD
+                levels = points.bit_length() - 1
+
+                # nothing set: the factor is `+1.0`, taken from the constant,
+                # not from an arithmetic identity
+                result_re = SInt(inner)(inner_constant(0, inner)[0])
+                result_im = SInt(inner)(inner_constant(0, inner)[1])
+
+                # the highest bit which is set, as a one hot mask
+                higher = Bits(1)(0)
+                for bit in reversed(range(levels)):
+                    set_now = io.index[bit]
+                    highest = set_now & ~higher
+                    higher = higher | set_now
+                    factor_re, factor_im = inner_constant(1 << bit, inner)
+                    # the chain starts here
+                    start_re = SInt(inner)(factor_re)
+                    start_im = SInt(inner)(factor_im)
+                    # the lower bits multiply their factor in
+                    rotated_re, rotated_im = constant_multiply(
+                        result_re, result_im, factor_re, factor_im, inner)
+                    result_re = mux(highest, start_re,
+                                    mux(set_now, rotated_re, result_re))
+                    result_im = mux(highest, start_im,
+                                    mux(set_now, rotated_im, result_im))
+
+                # the chain worked in the extra bits, the factor is the high
+                # part of it; the inverse transform conjugates it after the
+                # truncation, since a shift is not symmetric about zero
+                truncate = Bits(inner)(GUARD)
+                final_re = comb.ShrSOp(
+                    result_re.as_bits(), truncate).as_sint(inner)
+                final_im = comb.ShrSOp(
+                    result_im.as_bits(), truncate).as_sint(inner)
+                narrowed_re = saturate_from(final_re, width)
+                narrowed_im = saturate_from(final_im, width)
+                if inverse:
+                    narrowed_im = negate(narrowed_im)
+                io.re = narrowed_re.as_bits()
+                io.im = narrowed_im.as_bits()
+                io.ready = Bits(1)(1)
+                io.valid = Bits(1)(1)
+
+            def logic_core(io):
+                """The table as gates: a sum of products from the truth table.
+
+                Every output bit is a boolean function of the index bits, built
+                at elaboration time from the entries the table would hold.  The
+                values are therefore the entries themselves - there is nothing
+                to approximate - and there is no array for a synthesis tool to
+                infer a memory from.
+                """
+                table_bits = max(1, (points - 1).bit_length())
+                values = [inner_constant(k, width) for k in range(points)]
+                if inverse:
+                    values = [(re, -im) for (re, im) in values]
+
+                # the minterm select of every index
+                terms = []
+                for k in range(points):
+                    term = Bits(1)(1)
+                    for bit in range(table_bits):
+                        wanted = (k >> bit) & 1
+                        term = term & (io.index[bit] if wanted
+                                       else ~io.index[bit])
+                    terms.append(term)
+
+                for component in range(2):
+                    output_bits = []
+                    for bit in range(width):
+                        value = Bits(1)(0)
+                        for k in range(points):
+                            if (values[k][component] >> bit) & 1:
+                                value = value | terms[k]
+                        output_bits.append(value)
+                    if component == 0:
+                        re_bits = output_bits
+                    else:
+                        im_bits = output_bits
+                io.re = BitsSignal.concat(list(reversed(re_bits)))
+                io.im = BitsSignal.concat(list(reversed(im_bits)))
+                io.ready = Bits(1)(1)
+                io.valid = Bits(1)(1)
 
             use_cordic = mode == "cordic"
             if mode == "hybrid":
@@ -199,6 +345,12 @@ def Twiddle(width: int = 16, points: int = 16, mode: str = "rom",
                 # the number of points is, which is the trade the mode makes:
                 # a plain table holds `points / 2`.
                 hybrid_core(io)
+                return
+            if mode == "no_mem_cascade":
+                cascade_core(io)
+                return
+            if mode == "no_mem_logic":
+                logic_core(io)
                 return
             if not use_cordic:
                 # the factors are stored in a read only memory

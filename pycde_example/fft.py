@@ -44,7 +44,8 @@ The configuration of the transform:
     one unrolls it (see :mod:`fft_pipelined`).
 
 ``twiddle_mode``
-    ``"rom"``, ``"cordic"``, ``"hybrid"`` or ``"no_mem"`` - see
+    ``"rom"``, ``"cordic"``, ``"hybrid"``, ``"no_mem_cascade"`` or
+    ``"no_mem_logic"`` - see
     :func:`fft_twiddle.Twiddle`.
 
 ``data_format``

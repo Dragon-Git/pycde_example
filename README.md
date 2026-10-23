@@ -94,7 +94,7 @@ according to the configuration:
 | `radices` | `"2"`, `"4"`, `"8"`, `"4,2"`, ... | the radices of the transform as a comma separated list whose product is `points`; a radix larger than 2 is supported by the unrolled pipeline (`pipeline_style="unrolled"`) only |
 | `eval_mode` | `"memory_based"`, `"pipelined"` | `"memory_based"`: the transform is computed iteratively, the intermediate results stay in the frame memory (`log2(points)` passes of `points / 2` butterflies).  `"pipelined"`: the transform is unrolled, every radix-2 stage has its own butterflies |
 | `pipeline_style` | `"unrolled"`, `"sdf"`, `"sdc"`, `"mdf"`, `"mdc"` | the sub topology of the pipelined architecture: `"unrolled"` gives every stage its own butterflies and unrolls the transform, the single path delay feedback (`"sdf"`) and the single path delay commutator (`"sdc"`) fold it into a chain of stages, and the multi path (`"mdf"`, `"mdc"`) ones split the frame and transform the halves in two chains side by side, on delay feedback or on delay commutator chains |
-| `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced (the memory based architecture only, the pipelined ones use constant factors): a table, a CORDIC, a coarse CORDIC with a correction table, or - not implemented - no memory at all |
+| `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem_cascade"`, `"no_mem_logic"` | how the twiddle factors are produced (the memory based architecture only, the pipelined ones use constant factors): a table, a CORDIC, a coarse CORDIC with a correction table, or one of the two structures which need no memory at all - a cascade of rotator cells, or the table realised as gates |
 | `data_format` | `"fixed"`, `"block_float"` | the number format of the datapath |
 | `scaling` | `"stage"`, `"none"` | the scaling of the stages: `"stage"` halves the operands of every butterfly, so that the magnitude of the datapath does not grow from stage to stage |
 | `stages` | any number >= 0 | the number of pipeline stages: the number of registers between two radix-2 stages of the pipelined architecture |
@@ -254,8 +254,48 @@ exactly, for the reason the twiddles are: the table cannot hold them.  A radix 4
 butterfly therefore needs no multiplier at all, a radix 8 one only for the
 eighth roots which are neither.
 
+### Twiddle factors without a memory
+
+A table holds `points / 2` factors, which for a small transform is its largest
+part.  Two structures replace it, and they are different designs rather than two
+names for one thing:
+
+| | `no_mem_cascade` | `no_mem_logic` |
+|---|---|---|
+| structure | a chain of rotator cells, one per bit of the index | gates: the table realised as logic |
+| cell | a constant rotation, a shift and add chain - no multiplier | a sum of products over the index bits |
+| has an angle iteration | no, feed forward | no |
+| cost grows with | `log2(points)` cells | the number of points |
+| values | within one unit of the table | the table, bit for bit |
+| applies to | any number of points | a small transform |
+
+The cascade splits the factor along the bits of its index,
+`W**k = product of W**(2**i)` over the bits `i` of `k` which are set, and cell
+`i` rotates by its constant when bit `i` is set and passes through when it is
+not.  It is the multiplier free cascade of Huang and Chen (IEEE TVLSI, 2014):
+feed forward, no residual angle, and one more cell extends the supported number
+of points, so the design scales from 64 to 32768 points by adding or removing
+cells.  A cell multiplies by a constant, which is a shift and add chain rather
+than a multiplier; the shifts which two neighbouring cells share are left for
+the synthesis tool to find and share.  Two details decide whether it is nearly exact or not - it starts at
+the factor of the highest bit which is set, because the format cannot hold
+`+1.0`, and its cells work in `GUARD` extra bits and saturate, because a product
+whose magnitude is exactly one is one unit past what the format holds and
+would otherwise wrap to the other end of the range with the wrong sign.  With
+both, the factor is within one unit of the table for every width and number of
+points measured.
+
+The logic one keeps the values and drops the memory: every output bit is a
+boolean function of the index bits, built at elaboration time from the entries
+the table would hold.  Nothing is approximated, but the gates grow with the
+number of points, so it is the structure for a small transform with a fixed
+size - which is the case it is published for, the ROMless generator of the low
+power literature: for a fixed transform the bus sum of the logic terms costs
+less power than the smallest table which holds the factors.  `LOGIC_LIMIT` is
+where this implementation stops; `no_mem_cascade` is the structure which scales.
+
 Not implemented yet: the split radix transform, the block floating point format
-and the twiddle factors without a memory (`twiddle_mode="no_mem"`).  A radix
+.  A radix
 larger than 2 is wired into the unrolled pipeline only; the other architectures
 have a radix 2 butterfly hard wired in their stages.  The parameters are already
 part of the interface, they raise a `NotImplementedError` for the
