@@ -119,13 +119,14 @@ def test_the_zero_index_is_the_table_entry():
 def test_the_transform_with_each_structure(mode):
     """A transform built on either structure still computes the transform."""
     width, points = 16, 16
-    from .fft_model import dft
+    from .fft_golden import golden
     frame = [(to_fixed(0.3 * ((-1) ** n) / (n + 1), width), 0)
              for n in range(points)]
     got = fft(frame, width, points, dit=True, twiddle_mode=mode)
-    expected = dft(frame)
-    worst = max(max(abs(got[i][0] - expected[i].real / points),
-                    abs(got[i][1] - expected[i].imag / points))
+    # the golden already carries the scaling of the stages
+    expected = golden(frame, width, points)
+    worst = max(max(abs(got[i][0] - expected[i].real),
+                    abs(got[i][1] - expected[i].imag))
                 for i in range(points))
     # the cascade truncates its chain, the logic one is the table
     bound = 40 if mode == "no_mem_cascade" else 8

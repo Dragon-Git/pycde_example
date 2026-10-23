@@ -13,6 +13,7 @@ import random
 
 import pytest
 
+from .fft_golden import golden
 from .fft_model import to_fixed
 from .fft_radix_model import fft_mixed
 from .fft_sdc_model import sdc
@@ -86,13 +87,19 @@ def test_the_chain_is_deterministic(radices, points):
 
 @pytest.mark.parametrize("radices,points", [("4", 16), ("8", 8), ("4,2", 8)])
 def test_an_impulse_is_flat(radices, points):
-    """An impulse in the input is flat in the output."""
+    """An impulse in the input is flat in the output, says the golden.
+
+    The expected value comes from NumPy and not from `height / points`: the two
+    agree here, and writing the same thing twice is how a derivation and a model
+    end up making the same mistake.
+    """
     width = 16
     frame = [(to_fixed(0.5, width), 0)] + [(0, 0)] * (points - 1)
     got = sdc_radix(frame, width, points, radices)
-    expected = to_fixed(0.5 / points, width)
+    want = golden(frame, width, points)
     for k in range(points):
-        assert got[k] == (expected, 0), f"bin {k} is {got[k]}"
+        assert abs(got[k][0] - want[k].real) < 0.5, f"bin {k} is {got[k]}"
+        assert abs(got[k][1] - want[k].imag) < 0.5, f"bin {k} is {got[k]}"
 
 
 def test_both_topologies_agree():

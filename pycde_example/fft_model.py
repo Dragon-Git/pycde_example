@@ -354,7 +354,17 @@ def fft(samples: list[tuple[int, int]], width: int, points: int,
 
 
 def dft(samples: list[tuple[int, int]]) -> list[complex]:
-    """The floating point reference: the discrete Fourier transform."""
+    """The discrete Fourier transform, written out in this package.
+
+    It is **not** a reference for the tests.  It shares this module with the
+    arithmetic it would be checking - `twiddle_table` and `complex_multiply` are
+    its neighbours - and a reference which shares code with the thing it judges
+    can inherit the same mistake.  The reference is :mod:`fft_golden`, which is
+    NumPy and shares nothing.
+
+    It stays here because it is a readable statement of what the transform is, and
+    because it is useful when reading the models beside it.
+    """
     points = len(samples)
     result = []
     for k in range(points):

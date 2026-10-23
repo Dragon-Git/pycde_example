@@ -12,11 +12,11 @@ import random
 
 import pytest
 
+from .fft_golden import deviation, golden
 from .fft_model import (
     bit_reverse,
     complex_multiply,
     cordic_iterations,
-    dft,
     fft,
     fft_inverse,
     from_fixed,
@@ -120,20 +120,20 @@ def test_fft_matches_dft(width, points):
     for dit in (True, False):
         samples = random_samples(points, width, seed=points)
         got = fft(samples, width, points, dit=dit, scale=True)
-        ref = dft(samples)
-        # the truncation of the fixed point multiplier dominates the error
-        assert max_error(got, ref, width, points) < 4 * points
+        # the golden carries the scaling of the stages
+        ref = golden(samples, width, points)
+        assert deviation(got, ref) < 4 * points
 
 
 def test_impulse_response():
     """An impulse in the input is flat in the output."""
     width, points = 16, 16
     samples = [(to_fixed(0.5, width), 0)] + [(0, 0)] * (points - 1)
+    # the expected value comes from the golden, not from `0.5 / points`
+    want = golden(samples, width, points)
     for dit in (True, False):
         got = fft(samples, width, points, dit=dit, scale=True)
-        for k in range(points):
-            assert abs(from_fixed(got[k][0], width) - 0.5 / points) < 1e-4
-            assert abs(from_fixed(got[k][1], width)) < 1e-4
+        assert deviation(got, want) < 0.5
 
 
 def test_tone_response():

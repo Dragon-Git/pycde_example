@@ -19,7 +19,8 @@ import random
 
 import pytest
 
-from .fft_model import dft, fft, to_fixed
+from .fft_golden import golden
+from .fft_model import fft, to_fixed
 from .fft_sdc_model import (
     bit_reverse,
     output_order,
@@ -122,9 +123,9 @@ def test_sdc_matches_the_float_transform():
     width, points = 16, 16
     samples = random_samples(points, width, seed=5)
     got = sdc(samples, width, points)
-    reference = dft(samples)
+    reference = golden(samples, width, points)
     for k in range(points):
-        expected = reference[k] / points
+        expected = reference[k]
         assert abs(complex(got[k][0], got[k][1]) - expected) < 4.0
 
 

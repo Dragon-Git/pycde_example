@@ -12,7 +12,8 @@ import random
 
 import pytest
 
-from .fft_model import dft, fft, to_fixed
+from .fft_golden import deviation, golden
+from .fft_model import fft, to_fixed
 from .fft_radix_model import expand_radices, fft_mixed, log2, mixed_reverse, parse_radices, radix_size
 
 
@@ -51,11 +52,9 @@ def test_mixed_radix_matches_the_transform(radices, points, dit):
     stages = parse_radices(radices)
     frame = random_frame(points, width, seed=points + len(radices))
     got = fft_mixed(frame, width, points, radices, dit=dit, scale=True)
-    expected = dft(frame)
-    # the stages scale the datapath by the number of points in total
-    worst = max(max(abs(got[i][0] - expected[i].real / points),
-                    abs(got[i][1] - expected[i].imag / points))
-                for i in range(points))
+    # the golden already carries the scaling of the stages
+    expected = golden(frame, width, points)
+    worst = deviation(got, expected)
     assert worst <= tolerance(width, stages), f"{radices} off by {worst}"
 
 
@@ -82,13 +81,10 @@ def test_a_mixed_radix_is_not_the_same_radix_order():
     """Two different stage orders both compute the transform."""
     width, points = 24, 32
     frame = random_frame(points, width, seed=11)
-    expected = dft(frame)
+    expected = golden(frame, width, points)
     for radices, stages in (("8,4", [8, 4]), ("4,8", [4, 8])):
         got = fft_mixed(frame, width, points, radices, dit=False)
-        worst = max(max(abs(got[i][0] - expected[i].real / points),
-                        abs(got[i][1] - expected[i].imag / points))
-                    for i in range(points))
-        assert worst <= tolerance(width, stages)
+        assert deviation(got, expected) <= tolerance(width, stages)
 
 
 def test_both_quarter_turns_are_exact():
