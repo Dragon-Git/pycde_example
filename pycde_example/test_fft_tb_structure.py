@@ -112,3 +112,38 @@ def test_every_test_module_uses_the_bench_of_its_topology():
             if isinstance(node, ast.Attribute)}
         assert bench_of[style] in used, (
             f"{module} builds a {style} but does not use {bench_of[style]}")
+
+
+def test_every_test_module_unpacks_the_bench_it_calls():
+    """The number of tests a bench returns has to match the unpacking.
+
+    `make_streaming_fft_tests` returns three tests, the other benches two, and a
+    module which unpacks the wrong number fails while the suite is being collected
+    - one CI round away from the edit which introduced it.
+    """
+    returns = {}
+    for node in parse().body:
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("make_"):
+            for child in ast.walk(node):
+                if (isinstance(child, ast.Return)
+                        and isinstance(child.value, ast.Tuple)):
+                    returns[node.name] = len(child.value.elts)
+
+    tree_root = BENCH.parent
+    for path in sorted(tree_root.glob("test_fft_*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            call = node.value
+            if not (isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Name)
+                    and call.func.id in returns):
+                continue
+            bench = call.func.id
+            for target in node.targets:
+                if not isinstance(target, ast.Tuple):
+                    continue
+                assert len(target.elts) == returns[bench], (
+                    f"{path.name} unpacks {len(target.elts)} names from "
+                    f"{bench}, which returns {returns[bench]}")
