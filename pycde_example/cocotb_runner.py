@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import glob
 import os
+import sys
 
 from cocotb_tools.runner import get_runner
 
@@ -107,11 +108,21 @@ def run_cocotb(module_name: str) -> None:
             # they are handy to debug a failure
             build_args=["--public-flat-rw"],
         )
+    # cocotb runs the test module in a process of its own, so the environment of
+    # the pytest process is not inherited: the paths that process needs have to
+    # be handed over explicitly.  Without them a generated module cannot import
+    # the package it lives beside, and the failure reads as a missing module
+    # rather than as a missing path.
+    extra_env = {"PYTHONPATH": os.pathsep.join(
+        path for path in sys.path if path)}
+    if os.environ.get("FFT_STRESS_MANIFEST"):
+        extra_env["FFT_STRESS_MANIFEST"] = os.environ["FFT_STRESS_MANIFEST"]
     runner.test(
         hdl_toplevel=rtl_name,
         hdl_toplevel_lang="verilog",
         test_module=module_name,
         build_dir=directory,
         test_dir=directory,
-        test_args=[]
+        test_args=[],
+        extra_env=extra_env,
     )
