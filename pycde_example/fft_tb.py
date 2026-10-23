@@ -207,7 +207,20 @@ async def send_frame(dut, frame: list[tuple[int, int]], width: int) -> None:
 
 async def receive_frame(dut, points: int, width: int,
                         timeout: int = 10000) -> list[tuple[int, int]]:
-    """Receive one frame of samples from the DUT."""
+    """Receive one frame of samples from the DUT.
+
+    The receiver waits for `out_valid` before it collects anything: a design which
+    still holds the tail of the previous spectrum would otherwise hand over a
+    frame made of two half frames, and the comparison would fail in a way which
+    says nothing about the transform.
+    """
+    for _ in range(timeout):
+        await RisingEdge(dut.clk)
+        await Timer(1, units="ps")
+        if int(dut.out_valid.value) == 1:
+            break
+    else:
+        raise AssertionError("the FFT did not assert a valid result")
     result = []
     for _ in range(timeout):
         await RisingEdge(dut.clk)
@@ -217,7 +230,8 @@ async def receive_frame(dut, points: int, width: int,
                            to_signed(int(dut.out_imag.value), width)))
             if len(result) == points:
                 return result
-    raise AssertionError("the FFT did not produce a result")
+    raise AssertionError(f"the FFT did not produce a result, collected "
+                         f"{len(result)} of {points} samples")
 
 
 async def drive_with_backpressure(dut, frames, width: int) -> list[list[tuple[int, int]]]:
