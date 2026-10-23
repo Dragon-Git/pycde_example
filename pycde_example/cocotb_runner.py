@@ -84,17 +84,34 @@ def run_cocotb(module_name: str) -> None:
 
     A module which is not registered is an error: skipping it silently would
     make the test pass without running anything.
+
+    The simulator of a configuration is built the first time its module runs, and
+    reused afterwards.  The regular matrix builds everything up front, in one
+    step; the stress matrix generates its RTL and its modules per shard and there
+    is no such step, so the build belongs here as well - a module whose design is
+    missing can only fail.
     """
     if module_name not in RTL_SPECS:
         raise KeyError(f"{module_name} is not registered in RTL_SPECS, its RTL "
                        f"would not be built and the test would not run")
-    rtl_name = RTL_SPECS[module_name][1]
+    sources, rtl_name = RTL_SPECS[module_name]
     runner = get_runner("verilator")
+    directory = build_dir(module_name)
+    if not os.path.isdir(directory) or not os.listdir(directory):
+        runner.build(
+            sources=sources,
+            hdl_toplevel=rtl_name,
+            always=False,
+            build_dir=directory,
+            # the internal signals of the design are made visible to the test,
+            # they are handy to debug a failure
+            build_args=["--public-flat-rw"],
+        )
     runner.test(
         hdl_toplevel=rtl_name,
         hdl_toplevel_lang="verilog",
         test_module=module_name,
-        build_dir=build_dir(module_name),
-        test_dir=build_dir(module_name),
+        build_dir=directory,
+        test_dir=directory,
         test_args=[]
     )
