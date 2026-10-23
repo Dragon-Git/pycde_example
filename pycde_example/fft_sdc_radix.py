@@ -340,9 +340,16 @@ def FftSdcRadix(width: int = 16, points: int = 16, radices: str = "4",
             # The window is `points` cycles long.  The frame writes into the bank
             # of its window while the other one is read out at the same
             # position, so no handshake is needed between capture and readout.
+            # The window of the output is rotated by the latency of the chain,
+            # which is `points - 1`: the position inside the window is the
+            # counter plus one, modulo the number of points, and the modulo is a
+            # bit slice because the number of points is a power of two.
+            rotated_count = ((cnt + UInt(count_width)(1)).as_uint(count_width)
+                             .as_bits()[:count_width]).as_uint(count_width)
             filled = (fill == UInt(count_width)(points - 1)).as_bits()
             window_done = (counting & filled
-                           & (cnt == UInt(count_width)(points - 1)).as_bits())
+                           & (rotated_count
+                              == UInt(count_width)(points - 1)).as_bits())
             read_bank = ~write_bank
             buf_re = [[], []]
             buf_im = [[], []]
@@ -350,7 +357,8 @@ def FftSdcRadix(width: int = 16, points: int = 16, radices: str = "4",
                 for bin_index in range(points):
                     slot = mixed_reverse(bin_index, radix_list)
                     enable = (write_bank == Bits(1)(bank_index)).as_bits() \
-                        & (cnt == UInt(count_width)(slot)).as_bits() \
+                        & (rotated_count
+                           == UInt(count_width)(slot)).as_bits() \
                         & filled & counting.as_bits()
                     reg_re = Reg(SInt(width), io.clk, io.rst, 0, ce=enable,
                                  name=f"buf{bank_index}_re_{bin_index}")
