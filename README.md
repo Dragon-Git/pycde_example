@@ -91,7 +91,7 @@ according to the configuration:
 |-----------|--------|---------|
 | `width` | any width >= 8 | the width of the two's complement datapath, a real number `v` is represented by `round(v * 2**(width - 1))` |
 | `points` | a power of two | the number of points of the transform |
-| `radices` | `"2"`, `"4"`, `"8"`, `"4,2"`, ... | the radices of the transform as a comma separated list whose product is `points`; a radix larger than 2 is supported by the unrolled pipeline (`pipeline_style="unrolled"`) only |
+| `radices` | `"2"`, `"4"`, `"8"`, `"4,2"`, ... | the radices of the transform as a comma separated list whose product is `points`; a single value is repeated to fill the transform, a list is taken literally.  A radix larger than 2 is supported by every pipelined topology |
 | `eval_mode` | `"memory_based"`, `"pipelined"` | `"memory_based"`: the transform is computed iteratively, the intermediate results stay in the frame memory (`log2(points)` passes of `points / 2` butterflies).  `"pipelined"`: the transform is unrolled, every radix-2 stage has its own butterflies |
 | `pipeline_style` | `"unrolled"`, `"sdf"`, `"sdc"`, `"mdf"`, `"mdc"` | the sub topology of the pipelined architecture: `"unrolled"` gives every stage its own butterflies and unrolls the transform, the single path delay feedback (`"sdf"`) and the single path delay commutator (`"sdc"`) fold it into a chain of stages, and the multi path (`"mdf"`, `"mdc"`) ones split the frame and transform the halves in two chains side by side, on delay feedback or on delay commutator chains |
 | `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem_cascade"`, `"no_mem_logic"` | how the twiddle factors are produced (the memory based architecture only, the pipelined ones use constant factors): a table, a CORDIC, a coarse CORDIC with a correction table, or one of the two structures which need no memory at all - a cascade of rotator cells, or the table realised as gates |
@@ -293,6 +293,21 @@ size - which is the case it is published for, the ROMless generator of the low
 power literature: for a fixed transform the bus sum of the logic terms costs
 less power than the smallest table which holds the factors.  `LOGIC_LIMIT` is
 where this implementation stops; `no_mem_cascade` is the structure which scales.
+
+A stage of radix `R` combines `R` samples which are `length / R` apart.  In a
+delay line topology the timing follows from one observation: a shift register of
+depth `d` hands out what was pushed into it `d` cycles ago, so `d` is the time a
+value has to be held.  The sample of quarter `q` waits `(R-1-q)*sub` cycles for
+the butterfly and the difference of arm `r` waits `r*sub` cycles before it leaves,
+which is the same set of durations - so a stage keeps `R - 1` registers of depth
+`k*sub`, and the latency stays `points - 1` for every radix.
+
+What the larger butterfly costs is storage.  Per stage a delay feedback chain
+needs `L*(R-1)/2` registers against `L/2` at radix 2, so a uniform radix `R`
+transform of `N` points needs about `N*R/2` - twice as much at radix 4, four times
+at radix 8.  A commutator chain needs twice that again, because the results need
+lines of their own: it has no feedback loop, which is what it trades the
+registers for.
 
 Not implemented yet: the split radix transform, the block floating point format
 .  A radix

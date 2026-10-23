@@ -202,6 +202,16 @@ FFT_CONFIGS: list[dict] = [
     # the radix 8 delay feedback chain
     _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
             pipeline_style="sdf", stages=1, radices="8"),
+    # the multi path delay feedback with a radix 4 chain: the split, then one
+    # stage of radix 4 on each half
+    _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
+            pipeline_style="mdf", stages=1, radices="2,4"),
+    # a radix 4 delay commutator chain: no feedback loop in the datapath
+    _config(width=16, points=16, ordering="dif", eval_mode="pipelined",
+            pipeline_style="sdc", stages=1, radices="4"),
+    # the multi path delay commutator with a radix 4 chain
+    _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
+            pipeline_style="mdc", stages=1, radices="2,4"),
     # the multi path delay commutator: the same split, chains of the other kind
     _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
             pipeline_style="mdc", stages=1),

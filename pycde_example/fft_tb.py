@@ -380,10 +380,9 @@ def make_mdc_tests(**params):
     twiddle_mode = params.get("twiddle_mode", "rom")
     scaled = params.get("scaling", "stage") == "stage"
 
-    def reference(frame):
-        """The expected result of the transform."""
-        return fft(frame, width, points, dit=dit, scale=scaled,
-                   twiddle_mode=twiddle_mode)
+    # the reference of the configuration, radix 2 or mixed radix
+    reference = mixed_radix_reference(params, width, points, dit, scaled,
+                                      False, twiddle_mode)
 
     @cocotb.test()
     async def test_fft(dut):

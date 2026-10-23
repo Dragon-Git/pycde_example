@@ -27,7 +27,9 @@ the odd ones.
 from __future__ import annotations
 
 from .fft_model import apply_twiddle, twiddle_table, wrap
+from .fft_radix_model import expand_radices
 from .fft_sdf_model import SdfStage, bit_reverse
+from .fft_sdf_radix_model import sdf_radix
 
 
 class MdfPath:
@@ -59,10 +61,32 @@ class MdfPath:
         return value
 
 
+def chain_radices(radices: str | list[int], points: int) -> list[int]:
+    """The radices of the two chains.
+
+    The decomposition of a multi path delay feedback transform starts with the
+    stage which splits the frame - a radix 2 one, since it is the butterfly of
+    the first stage of the decimation in frequency - and the rest belongs to the
+    chains, which work on half of the frame each.  So ``"2,4"`` on 16 points is
+    the split followed by one radix 4 stage on eight points.
+    """
+    stages = expand_radices(radices, points)
+    if stages[0] != 2:
+        raise ValueError(f"the first stage of this architecture splits the frame "
+                         f"and is a radix 2 one, got the radices {radices!r}")
+    return stages[1:]
+
+
 def mdf(samples: list[tuple[int, int]], width: int, points: int,
-        scale: bool = True) -> list[tuple[int, int]]:
+        scale: bool = True, radices: str | list[int] = "2",
+        ) -> list[tuple[int, int]]:
     """The spectrum of one frame in the natural order."""
     half = points // 2
+    stages = chain_radices(radices, points)
+    if any(radix != 2 for radix in stages):
+        # a larger radix inside the chains is the same transform, so the
+        # chains are the ones the radix model builds
+        return mdf_radix(samples, width, points, stages, scale)
     table = twiddle_table(points, width)
 
     # the leading butterfly: the two halves meet here
@@ -102,4 +126,35 @@ def mdf(samples: list[tuple[int, int]], width: int, points: int,
         source = bit_reverse(k, sub_levels)
         result[2 * k] = even_out[latency + source]
         result[2 * k + 1] = odd_out[latency + source]
+    return result
+
+
+def mdf_radix(samples: list[tuple[int, int]], width: int, points: int,
+              stages: list[int], scale: bool = True,
+              ) -> list[tuple[int, int]]:
+    """The spectrum when the chains carry a butterfly of their own radix.
+
+    The first stage is the same whatever the chains are: it splits the frame into
+    the sum and the rotated difference.  What changes is only how a half is
+    transformed, and that is the delay feedback chain over `points / 2` points.
+    """
+    half = points // 2
+    sums = []
+    differences = []
+    for j in range(half):
+        a_re, a_im = samples[j]
+        b_re, b_im = samples[j + half]
+        if scale:
+            a_re, a_im = a_re >> 1, a_im >> 1
+            b_re, b_im = b_re >> 1, b_im >> 1
+        sums.append((wrap(a_re + b_re, width), wrap(a_im + b_im, width)))
+        difference = (wrap(a_re - b_re, width), wrap(a_im - b_im, width))
+        differences.append(apply_twiddle(j, difference[0], difference[1],
+                                         width, points))
+    even_path = sdf_radix(sums, width, half, stages, scale)
+    odd_path = sdf_radix(differences, width, half, stages, scale)
+    result = [(0, 0)] * points
+    for k in range(half):
+        result[2 * k] = even_path[k]
+        result[2 * k + 1] = odd_path[k]
     return result

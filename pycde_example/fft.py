@@ -106,6 +106,7 @@ try:
     from pycde_example.fft_pipelined import FftPipelined
     from pycde_example.fft_radix_model import expand_radices
     from pycde_example.fft_sdc import FftSdc
+    from pycde_example.fft_sdc_radix import FftSdcRadix
     from pycde_example.fft_sdf import FftSdf
     from pycde_example.fft_sdf_radix import FftSdfRadix
     from pycde_example.fft_twiddle import Twiddle
@@ -127,6 +128,7 @@ except ImportError:  # executed as a plain script ("python pycde_example/fft.py"
     from fft_pipelined import FftPipelined
     from fft_radix_model import expand_radices
     from fft_sdc import FftSdc
+    from fft_sdc_radix import FftSdcRadix
     from fft_sdf import FftSdf
     from fft_sdf_radix import FftSdfRadix
     from fft_twiddle import Twiddle
@@ -171,11 +173,12 @@ def Fft(width: int = 16,
     radix_list = expand_radices(radices, points)
     mixed_radix = any(radix != 2 for radix in radix_list)
     if mixed_radix and not (eval_mode == "pipelined"
-                            and pipeline_style in ("unrolled", "sdf")):
+                            and pipeline_style in ("unrolled", "sdf", "sdc",
+                                                   "mdf", "mdc")):
         raise NotImplementedError(
-            f"a radix larger than 2 is implemented for the unrolled pipeline "
-            f"and the delay feedback chain so far, got the radices "
-            f"{radices!r} with {eval_mode!r} and {pipeline_style!r}")
+            f"a radix larger than 2 is only implemented for the pipelined "
+            f"architectures, got the radices {radices!r} with {eval_mode!r} "
+            f"and {pipeline_style!r}")
     if data_format == "block_float":
         raise NotImplementedError("the block floating point format is not "
                                   "implemented yet")
@@ -241,7 +244,17 @@ def Fft(width: int = 16,
         @generator
         def construct(io):
             if eval_mode == "pipelined":
-                if pipeline_style == "sdc":
+                if pipeline_style == "sdc" and mixed_radix:
+                    # the delay commutator chain with a butterfly of the radix
+                    # the configuration asks for
+                    core = FftSdcRadix(width=width, points=points,
+                                       radices=radices, scaling=scaling)(
+                                           clk=io.clk, rst=io.rst,
+                                           in_valid=io.in_valid,
+                                           in_real=io.in_real,
+                                           in_imag=io.in_imag,
+                                           out_ready=io.out_ready)
+                elif pipeline_style == "sdc":
                     # the single path delay commutator architecture
                     core = FftSdc(width=width, points=points,
                                   scaling=scaling)(
@@ -271,7 +284,8 @@ def Fft(width: int = 16,
                 elif pipeline_style == "mdf":
                     # the multi path delay feedback architecture
                     core = FftMdf(width=width, points=points,
-                                  scaling=scaling, stages=stages)(
+                                  scaling=scaling, stages=stages,
+                                  radices=radices)(
                                       clk=io.clk, rst=io.rst,
                                       in_valid=io.in_valid,
                                       in_real=io.in_real, in_imag=io.in_imag,
@@ -279,7 +293,7 @@ def Fft(width: int = 16,
                 elif pipeline_style == "mdc":
                     # the multi path delay commutator architecture
                     core = FftMdc(width=width, points=points,
-                                  scaling=scaling)(
+                                  scaling=scaling, radices=radices)(
                                       clk=io.clk, rst=io.rst,
                                       in_valid=io.in_valid,
                                       in_real=io.in_real, in_imag=io.in_imag,

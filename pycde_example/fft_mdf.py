@@ -35,14 +35,16 @@ from pycde.types import Bits, SInt, UInt
 
 from .fft_butterfly import ComplexMultiplier
 from .fft_model import twiddle_table
+from .fft_radix_model import expand_radices
 from .fft_sdf import FftSdf
+from .fft_sdf_radix import FftSdfRadix
 
 SCALINGS = ("stage", "none")
 
 
 @modparams
 def FftMdf(width: int = 16, points: int = 16, scaling: str = "stage",
-           stages: int = 0):
+           stages: int = 0, radices: str = "2"):
     """The multi path delay feedback architecture of the FFT.
 
     It decimates in frequency: the first stage is the one which needs both
@@ -55,6 +57,18 @@ def FftMdf(width: int = 16, points: int = 16, scaling: str = "stage",
     if points < 4 or (points & (points - 1)):
         raise ValueError(f"points must be a power of two and at least 4, "
                          f"got {points}")
+
+    # The decomposition starts with the stage which splits the frame - a radix 2
+    # one, since it is the butterfly of the first stage of the decimation in
+    # frequency - and the rest belongs to the chains, which work on half of the
+    # frame each.
+    stage_list = expand_radices(radices, points)
+    if stage_list[0] != 2:
+        raise ValueError(f"the first stage of this architecture splits the "
+                         f"frame and is a radix 2 one, got {radices!r}")
+    chain_list = stage_list[1:]
+    chain_radices = ",".join(str(r) for r in chain_list)
+    has_big_radix = any(radix != 2 for radix in chain_list)
 
     half = points // 2
     count_width = max(1, (points - 1).bit_length())
@@ -188,18 +202,37 @@ def FftMdf(width: int = 16, points: int = 16, scaling: str = "stage",
             # registers between two stages of a chain, it adds to the latency
             # without changing the values.
             even_valid = feeding & (cnt < UInt(count_width)(half)).as_bits()
-            even = FftSdf(width=width, points=half, ordering="dif",
-                          scaling=scaling, stages=stages)(
-                              clk=io.clk, rst=io.rst,
-                              in_valid=even_valid,
-                              in_real=sum_re.as_bits(), in_imag=sum_im.as_bits(),
-                              out_ready=Bits(1)(1))
-            odd = FftSdf(width=width, points=half, ordering="dif",
-                         scaling=scaling, stages=stages)(
-                             clk=io.clk, rst=io.rst,
-                             in_valid=even_valid,
-                             in_real=odd_re.as_bits(), in_imag=odd_im.as_bits(),
-                             out_ready=Bits(1)(1))
+            if has_big_radix:
+                # a chain whose stages carry a butterfly of their own radix
+                even = FftSdfRadix(width=width, points=half,
+                                   radices=chain_radices, scaling=scaling)(
+                                       clk=io.clk, rst=io.rst,
+                                       in_valid=even_valid,
+                                       in_real=sum_re.as_bits(),
+                                       in_imag=sum_im.as_bits(),
+                                       out_ready=Bits(1)(1))
+                odd = FftSdfRadix(width=width, points=half,
+                                  radices=chain_radices, scaling=scaling)(
+                                      clk=io.clk, rst=io.rst,
+                                      in_valid=even_valid,
+                                      in_real=odd_re.as_bits(),
+                                      in_imag=odd_im.as_bits(),
+                                      out_ready=Bits(1)(1))
+            else:
+                even = FftSdf(width=width, points=half, ordering="dif",
+                              scaling=scaling, stages=stages)(
+                                  clk=io.clk, rst=io.rst,
+                                  in_valid=even_valid,
+                                  in_real=sum_re.as_bits(),
+                                  in_imag=sum_im.as_bits(),
+                                  out_ready=Bits(1)(1))
+                odd = FftSdf(width=width, points=half, ordering="dif",
+                             scaling=scaling, stages=stages)(
+                                 clk=io.clk, rst=io.rst,
+                                 in_valid=even_valid,
+                                 in_real=odd_re.as_bits(),
+                                 in_imag=odd_im.as_bits(),
+                                 out_ready=Bits(1)(1))
 
             # the feeding position moves on when the chains took the sample
             feed_accepted = even_valid & even.in_ready

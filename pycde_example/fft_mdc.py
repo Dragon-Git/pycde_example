@@ -55,19 +55,32 @@ from pycde.types import Bits, SInt, UInt
 
 from .fft_butterfly import ComplexMultiplier
 from .fft_model import twiddle_table
+from .fft_radix_model import expand_radices
 from .fft_sdc import FftSdc
+from .fft_sdc_radix import FftSdcRadix
 
 SCALINGS = ("stage", "none")
 
 
 @modparams
-def FftMdc(width: int = 16, points: int = 16, scaling: str = "stage"):
+def FftMdc(width: int = 16, points: int = 16, scaling: str = "stage",
+           radices: str = "2"):
     """The multi path delay commutator architecture of the FFT."""
     if scaling not in SCALINGS:
         raise ValueError(f"scaling must be one of {SCALINGS}, got {scaling!r}")
     if points < 4 or (points & (points - 1)):
         raise ValueError(f"points must be a power of two and at least 4, "
                          f"got {points}")
+
+    # The decomposition starts with the stage which splits the frame - a radix 2
+    # one - and the rest belongs to the chains, which work on half of the frame.
+    stage_list = expand_radices(radices, points)
+    if stage_list[0] != 2:
+        raise ValueError(f"the first stage of this architecture splits the "
+                         f"frame and is a radix 2 one, got {radices!r}")
+    chain_list = stage_list[1:]
+    chain_radices = ",".join(str(r) for r in chain_list)
+    has_big_radix = any(radix != 2 for radix in chain_list)
 
     half = points // 2
     count_width = max(1, (points - 1).bit_length())
@@ -193,20 +206,42 @@ def FftMdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # The chains are free running, so they are held still outside the
             # burst of the leading butterfly; the bursts then follow each other
             # without a gap as far as a chain is concerned.
-            even = FftSdc(width=width, points=half, scaling=scaling,
-                          stallable=True)(
-                              clk=io.clk, rst=io.rst,
-                              in_valid=feed_valid,
-                              in_real=sum_re.as_bits(), in_imag=sum_im.as_bits(),
-                              in_enable=feed_valid,
-                              out_ready=Bits(1)(1))
-            odd = FftSdc(width=width, points=half, scaling=scaling,
-                         stallable=True)(
-                             clk=io.clk, rst=io.rst,
-                             in_valid=feed_valid,
-                             in_real=odd_re.as_bits(), in_imag=odd_im.as_bits(),
-                             in_enable=feed_valid,
-                             out_ready=Bits(1)(1))
+            if has_big_radix:
+                even = FftSdcRadix(width=width, points=half,
+                                   radices=chain_radices, scaling=scaling,
+                                   stallable=True)(
+                                       clk=io.clk, rst=io.rst,
+                                       in_valid=feed_valid,
+                                       in_real=sum_re.as_bits(),
+                                       in_imag=sum_im.as_bits(),
+                                       in_enable=feed_valid,
+                                       out_ready=Bits(1)(1))
+                odd = FftSdcRadix(width=width, points=half,
+                                  radices=chain_radices, scaling=scaling,
+                                  stallable=True)(
+                                      clk=io.clk, rst=io.rst,
+                                      in_valid=feed_valid,
+                                      in_real=odd_re.as_bits(),
+                                      in_imag=odd_im.as_bits(),
+                                      in_enable=feed_valid,
+                                      out_ready=Bits(1)(1))
+            else:
+                even = FftSdc(width=width, points=half, scaling=scaling,
+                              stallable=True)(
+                                  clk=io.clk, rst=io.rst,
+                                  in_valid=feed_valid,
+                                  in_real=sum_re.as_bits(),
+                                  in_imag=sum_im.as_bits(),
+                                  in_enable=feed_valid,
+                                  out_ready=Bits(1)(1))
+                odd = FftSdc(width=width, points=half, scaling=scaling,
+                             stallable=True)(
+                                 clk=io.clk, rst=io.rst,
+                                 in_valid=feed_valid,
+                                 in_real=odd_re.as_bits(),
+                                 in_imag=odd_im.as_bits(),
+                                 in_enable=feed_valid,
+                                 out_ready=Bits(1)(1))
 
             # the sample is gone when the chain really took it: a chain stands
             # still while it hands its spectrum over

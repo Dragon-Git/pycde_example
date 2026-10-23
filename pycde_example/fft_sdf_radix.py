@@ -117,13 +117,14 @@ def FftSdfRadix(width: int = 16, points: int = 16, radices: str = "4",
                 wide = value.as_sint(width + 1)
                 return (SInt(width + 1)(0) - wide).as_sint(width)
 
-            def rotate(factor_re: int, factor_im: int, re, im):
-                """Multiply with a constant factor.
+            def rotate_constant(factor_re: int, factor_im: int, re, im):
+                """Multiply with a factor which is known at elaboration time.
 
-                The factor is a constant of the stage, so the trivial ones are
-                resolved at elaboration time: the table cannot hold ``+1.0``,
-                ``-1`` or ``-j``, and multiplying with the entry a unit short of
-                them would cost a unit of the last bit.
+                The trivial ones are resolved here, in Python: the table cannot
+                hold ``+1.0``, ``-1`` or ``-j``, and multiplying with an entry a
+                unit short of them would cost a unit of the last bit.  The
+                arguments have to be integers - a factor which is a signal needs
+                `rotate_signal`, which decides the same three cases in hardware.
                 """
                 if factor_re == maximum and factor_im == 0:
                     return re, im
@@ -138,6 +139,40 @@ def FftSdfRadix(width: int = 16, points: int = 16, radices: str = "4",
                     b_re=SInt(width)(factor_re).as_bits(),
                     b_im=SInt(width)(factor_im).as_bits())
                 return product.re.as_sint(), product.im.as_sint()
+
+            def rotate_signal(factor_re, factor_im, re, im):
+                """Multiply with a factor which is a signal.
+
+                The factor is chosen by a multiplexer, so the trivial cases have
+                to be decided by the hardware: the same three values the
+                constant version recognises, compared here rather than in
+                Python.  Reading them off the signal the multiplier uses cannot
+                go out of step with it.
+                """
+                product = ComplexMultiplier(width=width)(
+                    a_re=re.as_bits(), a_im=im.as_bits(),
+                    b_re=factor_re.as_bits(), b_im=factor_im.as_bits())
+                top = SInt(width)(maximum)
+                zero = SInt(width)(0)
+                is_one = ((factor_re == top) & (factor_im == zero)).as_bits()
+                is_minus_j = ((factor_re == zero)
+                              & (factor_im == -top)).as_bits()
+                is_plus_j = ((factor_re == zero)
+                             & (factor_im == top)).as_bits()
+                is_minus_one = ((factor_re == -top)
+                                & (factor_im == zero)).as_bits()
+                quarter = is_minus_j | is_plus_j
+                quarter_re = mux(is_minus_j, im, negate(im))
+                quarter_im = mux(is_minus_j, negate(re), re)
+                turned_re = mux(is_one, re,
+                                mux(is_minus_one, negate(re),
+                                    mux(quarter, quarter_re,
+                                        product.re.as_sint())))
+                turned_im = mux(is_one, im,
+                                mux(is_minus_one, negate(im),
+                                    mux(quarter, quarter_im,
+                                        product.im.as_sint())))
+                return turned_re, turned_im
 
             def radix_dft(values):
                 """The ``R`` point transform inside a stage of radix ``R``."""
@@ -162,7 +197,8 @@ def FftSdfRadix(width: int = 16, points: int = 16, radices: str = "4",
                             w_re = roots[folded][0]
                             w_im = (roots[folded][1] if exponent < size // 2
                                     else -roots[folded][1])
-                            term_re, term_im = rotate(w_re, w_im, re, im)
+                            term_re, term_im = rotate_constant(
+                                w_re, w_im, re, im)
                         if acc_re is None:
                             acc_re, acc_im = term_re, term_im
                         else:
@@ -274,8 +310,8 @@ def FftSdfRadix(width: int = 16, points: int = 16, radices: str = "4",
                                     SInt(width)(factor_re))
                     factor_im = mux(hit, SInt(width)(choice_im),
                                     SInt(width)(factor_im))
-                rotated_re, rotated_im = rotate(factor_re, factor_im,
-                                                handed_re, handed_im)
+                rotated_re, rotated_im = rotate_signal(
+                    factor_re, factor_im, handed_re, handed_im)
 
                 stage_out_re = mux(last_quarter_bit, transformed[0][0],
                                    rotated_re)
