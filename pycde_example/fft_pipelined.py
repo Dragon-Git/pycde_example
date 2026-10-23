@@ -97,10 +97,16 @@ def FftPipelined(width: int = 16, points: int = 16, ordering: str = "dit",
                 """Multiply with the twiddle factor of `index`.
 
                 The index is a constant of the stage, so the trivial factors
-                are resolved here: W**0 is a wire and W**(points/4) is a swap
-                with a negation.  A multiplier is only built for the rest.  The
-                table cannot hold +1.0, so multiplying with its first entry
-                would cost a unit of the last bit.
+                are resolved here: W**0 is a wire, W**(points/2) is a negation
+                and W**(points/4) is a swap with a negation.  A multiplier is
+                only built for the rest.  The table cannot hold any of them, so
+                multiplying with an entry a unit short would cost a unit of the
+                last bit.
+
+                The table holds the first half of the factors only; the rest
+                follow from the conjugation symmetry W**(N - k) = conj(W**k),
+                which a radix larger than 2 needs because its rotation reaches
+                any index.
                 """
                 index %= points
                 if index == 0:
@@ -109,9 +115,16 @@ def FftPipelined(width: int = 16, points: int = 16, ordering: str = "dit",
                     # the factor is -j (the pipelined architectures compute the
                     # forward transform only)
                     return (im, negate(re))
-                return complex_multiply(SInt(width)(table[index % (points // 2)][0]),
-                                        SInt(width)(table[index % (points // 2)][1]),
-                                        re, im)
+                if index == points // 2:
+                    # the factor is -1
+                    return (negate(re), negate(im))
+                folded = index if index < points // 2 else points - index
+                factor_re = SInt(width)(table[folded][0])
+                factor_im = SInt(width)(table[folded][1])
+                if index > points // 2:
+                    # the conjugate
+                    factor_im = negate(factor_im)
+                return complex_multiply(factor_re, factor_im, re, im)
 
             # ------------------------------------------------------------------
             # the control
