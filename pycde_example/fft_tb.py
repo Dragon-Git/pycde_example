@@ -220,15 +220,20 @@ async def receive_frame(dut, points: int, width: int,
         # Sample just before the edge, which is the moment the design sees the
         # handshake.  After `await RisingEdge` the signals already describe the
         # following cycle, and reading them there counts a sample the design has
-        # not taken yet - which is invisible at thirty two points and is the whole
-        # difference at two, where a frame is two cycles long.
+        # not taken yet - invisible at thirty two points, and the whole difference
+        # at two, where a frame is two cycles long.
         await Timer(1, units="ps")
         out_valid = int(dut.out_valid.value)
         out_ready = int(dut.out_ready.value)
+        in_ready = int(dut.in_ready.value)
         sample = (to_signed(int(dut.out_real.value), width),
                   to_signed(int(dut.out_imag.value), width))
         await RisingEdge(dut.clk)
-        if out_valid == 1 and out_ready == 1:
+        # A spectrum leaves while the module is not accepting a frame.  Anything
+        # the interface hands over while `in_ready` is high belongs to the frame
+        # which is being received, not to the one which was sent, and counting it
+        # is what stitches two frames into one.
+        if out_valid == 1 and out_ready == 1 and in_ready == 0:
             result.append(sample)
             if len(result) == points:
                 return result
