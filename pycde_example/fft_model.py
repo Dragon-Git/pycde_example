@@ -109,8 +109,21 @@ def apply_twiddle(index: int, re: int, im: int, width: int, points: int,
         if inverse:
             return (wrap(-im, width), re)
         return (im, wrap(-re, width))
+    if points >= 4 and index % points == points // 2:
+        # -1, a negation: a radix 4 or radix 8 butterfly needs it inside the
+        # butterfly, and the table is one unit short of it for the same reason
+        # it is one unit short of +1.0
+        return (wrap(-re, width), wrap(-im, width))
     table = twiddle_table(points, width)
-    w_re, w_im = table[index % (points // 2)]
+    # The table holds the first half of the factors; the rest follow from the
+    # conjugation symmetry W**(N - k) = conj(W**k), which a mixed radix stage
+    # needs because its rotation can reach any index.
+    normalised = index % points
+    if normalised > points // 2:
+        w_re, w_im = table[points - normalised]
+        w_im = -w_im
+    else:
+        w_re, w_im = table[normalised % (points // 2)]
     if inverse:
         w_im = -w_im
     return complex_multiply(w_re, w_im, re, im, width)
