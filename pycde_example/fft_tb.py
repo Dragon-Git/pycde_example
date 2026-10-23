@@ -193,8 +193,10 @@ def mixed_radix_reference(params, width, points, dit, scaled, inverse,
                                  twiddle_mode=twiddle_mode)
     if inverse:
         raise NotImplementedError("the inverse transform is radix 2 only")
+    # the mixed radix model takes the radices instead of a twiddle mode: the
+    # table it uses is the one of the whole transform
     return lambda frame: fft_mixed(frame, width, points, radices, dit=dit,
-                                   scale=scaled, twiddle_mode=twiddle_mode)
+                                   scale=scaled)
 
 
 def make_streaming_fft_tests(**params):

@@ -59,3 +59,25 @@ def test_the_shared_helpers_are_module_level():
              if isinstance(node, ast.AsyncFunctionDef)}
     assert "stream_frames" in names
     assert "collect_spectra" in names
+
+
+def test_the_reference_of_every_configuration_can_be_built():
+    """Every configuration has to get a working reference model.
+
+    The factories are called without pycde - the model side does not need it -
+    so a mistake in how a parameter is handed to the model is caught here
+    instead of while the RTL is being generated.
+    """
+    from pycde_example.fft_configs import FFT_CONFIGS
+    from pycde_example.fft_tb import mixed_radix_reference
+
+    for config in FFT_CONFIGS:
+        params = config["params"]
+        reference = mixed_radix_reference(
+            params, params["width"], params["points"],
+            params["ordering"] == "dit",
+            params.get("scaling", "stage") == "stage",
+            params["inverse"], params.get("twiddle_mode", "rom"))
+        frame = [(0, 0)] * params["points"]
+        result = reference(frame)
+        assert len(result) == params["points"], config["name"]
