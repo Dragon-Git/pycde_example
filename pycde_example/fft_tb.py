@@ -400,6 +400,8 @@ def make_mdc_tests(**params):
         expected = reference(frames[0])
         assert results[0] == expected, f"got {results[0]}, expected {expected}"
 
+    return test_fft, test_fft_handshake
+
 
 def make_fft_tests(**params):
     """Create the cocotb tests of a single FFT configuration."""
