@@ -221,7 +221,9 @@ def FftSdcRadix(width: int = 16, points: int = 16, radices: str = "4",
                 if sub_bits:
                     quarter = stage_position[sub_bits:].as_uint(quarter_bits)
                 else:
-                    quarter = UInt(quarter_bits)(0)
+                    # a quarter is a single cycle long, so the phase inside
+                    # the window is the quarter itself
+                    quarter = stage_position.as_uint(quarter_bits)
                 last_quarter_bit = (quarter
                                     == UInt(quarter_bits)(radix - 1)).as_bits()
 
