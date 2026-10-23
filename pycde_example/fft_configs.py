@@ -10,7 +10,7 @@ The list below is the single source of truth for
 from __future__ import annotations
 
 ARCHES = ("memory_based", "pipelined")
-PIPELINE_STYLES = ("unrolled", "sdf", "sdc", "mdf")
+PIPELINE_STYLES = ("unrolled", "sdf", "sdc", "mdf", "mdc")
 TWIDDLE_MODES = ("rom", "cordic", "hybrid", "no_mem")
 DATA_FORMATS = ("fixed", "block_float")
 SCALINGS = ("stage", "none")
@@ -27,6 +27,7 @@ _PIPELINE_TAG = {
     "unrolled": "Unrolled",
     "sdc": "Sdc",
     "mdf": "Mdf",
+    "mdc": "Mdc",
 }
 
 _TWIDDLE_TAG = {
@@ -165,6 +166,15 @@ FFT_CONFIGS: list[dict] = [
             pipeline_style="mdf", stages=1),
     _config(width=16, points=32, ordering="dif", eval_mode="pipelined",
             pipeline_style="mdf", stages=1),
+    # the multi path delay commutator: the same split, chains of the other kind
+    _config(width=16, points=8, ordering="dif", eval_mode="pipelined",
+            pipeline_style="mdc", stages=1),
+    _config(width=16, points=16, ordering="dif", eval_mode="pipelined",
+            pipeline_style="mdc", stages=1),
+    _config(width=16, points=4, ordering="dif", eval_mode="pipelined",
+            pipeline_style="mdc", stages=1),
+    _config(width=16, points=32, ordering="dif", eval_mode="pipelined",
+            pipeline_style="mdc", stages=1),
     # the largest datapath which does not scale the stages: the transform does
     # not divide by the number of points then, so the width has to hold it
     _config(width=24, points=16, ordering="dif", scaling="none"),

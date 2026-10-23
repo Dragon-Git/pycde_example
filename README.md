@@ -93,7 +93,7 @@ according to the configuration:
 | `points` | a power of two | the number of points of the transform |
 | `radices` | `"2"` | the radices of the transform |
 | `eval_mode` | `"memory_based"`, `"pipelined"` | `"memory_based"`: the transform is computed iteratively, the intermediate results stay in the frame memory (`log2(points)` passes of `points / 2` butterflies).  `"pipelined"`: the transform is unrolled, every radix-2 stage has its own butterflies |
-| `pipeline_style` | `"unrolled"`, `"sdf"`, `"sdc"`, `"mdf"` | the sub topology of the pipelined architecture: `"unrolled"` gives every stage its own butterflies and unrolls the transform, the single path delay feedback (`"sdf"`) and the single path delay commutator (`"sdc"`) fold it into a chain of stages, and the multi path delay feedback (`"mdf"`) splits the frame and transforms the halves in two chains side by side |
+| `pipeline_style` | `"unrolled"`, `"sdf"`, `"sdc"`, `"mdf"`, `"mdc"` | the sub topology of the pipelined architecture: `"unrolled"` gives every stage its own butterflies and unrolls the transform, the single path delay feedback (`"sdf"`) and the single path delay commutator (`"sdc"`) fold it into a chain of stages, and the multi path (`"mdf"`, `"mdc"`) ones split the frame and transform the halves in two chains side by side, on delay feedback or on delay commutator chains |
 | `twiddle_mode` | `"rom"`, `"cordic"`, `"hybrid"`, `"no_mem"` | how the twiddle factors are produced (the memory based architecture only, the pipelined ones use constant factors): a table, a CORDIC, a coarse CORDIC with a correction table, or - not implemented - no memory at all |
 | `data_format` | `"fixed"`, `"block_float"` | the number format of the datapath |
 | `scaling` | `"stage"`, `"none"` | the scaling of the stages: `"stage"` halves the operands of every butterfly, so that the magnitude of the datapath does not grow from stage to stage |
@@ -150,6 +150,14 @@ meet in the first stage and nowhere else, so the chains are independent and work
 at the same time - several paths, each of them fed back.  A chain hands its half
 of the spectrum out in the natural order and the two halves interleave into the
 even and the odd bins.
+
+The two multi path architectures are the two halves of a table: ``S`` and ``M``
+say whether the frame is split, ``F`` and ``C`` say how a path is built - a delay
+feedback stage writes the difference of its butterfly back into the delay line,
+a delay commutator keeps the data moving forward and reorders it with
+multiplexers.  The multi path delay commutator (`pipeline_style="mdc"`) uses the
+same first stage as the feedback one and then two commutator chains, which hand
+their spectra over one window late: the first frame only fills them.
 
 The single path delay feedback architecture (`pipeline_style="sdf"`) folds the
 transform into a chain of `log2(points)` stages: every stage owns a delay line

@@ -307,6 +307,100 @@ def make_streaming_fft_tests(**params):
     return test_fft, test_fft_handshake, test_fft_backpressure
 
 
+
+async def stream_frames(dut, frames, width):
+    """Send the frames back to back, holding a sample until it is taken."""
+    for frame in frames:
+        for (re, im) in frame:
+            dut.in_real.value = to_bits(re, width)
+            dut.in_imag.value = to_bits(im, width)
+            dut.in_valid.value = 1
+            while True:
+                await Timer(1, units="ps")
+                if int(dut.in_ready.value) == 1:
+                    break
+                await RisingEdge(dut.clk)
+            await RisingEdge(dut.clk)
+            await Timer(1, units="ps")
+    dut.in_valid.value = 0
+    dut.in_real.value = 0
+    dut.in_imag.value = 0
+
+
+async def collect_spectra(dut, count, width, points):
+    """Collect `count` spectra, each of `points` samples."""
+    spectra = []
+    current = []
+    for _ in range(20000):
+        await RisingEdge(dut.clk)
+        await Timer(1, units="ps")
+        if int(dut.out_valid.value) == 1 and int(dut.out_ready.value) == 1:
+            current.append((to_signed(int(dut.out_real.value), width),
+                            to_signed(int(dut.out_imag.value), width)))
+            if len(current) == points:
+                spectra.append(current)
+                current = []
+                if len(spectra) == count:
+                    return spectra
+    raise AssertionError("the FFT did not produce enough results")
+
+
+def make_mdc_tests(**params):
+    """Create the cocotb tests of a multi path delay commutator.
+
+    The chains of the architecture are commutator chains, which hand a spectrum
+    over one window late: the first frame only fills them and the spectrum of a
+    frame leaves the architecture after the next frame was fed.  The tests
+    therefore stream the frames and compare every spectrum with the frame it
+    belongs to, one frame behind.
+    """
+    width = params["width"]
+    points = params["points"]
+    dit = params.get("ordering", "dit") == "dit"
+    twiddle_mode = params.get("twiddle_mode", "rom")
+    scaled = params.get("scaling", "stage") == "stage"
+
+    def reference(frame):
+        """The expected result of the transform."""
+        return fft(frame, width, points, dit=dit, scale=scaled,
+                   twiddle_mode=twiddle_mode)
+
+    @cocotb.test()
+    async def test_fft(dut):
+        """Compare the RTL against the bit exact reference model."""
+        clock = cocotb.clock.Clock(dut.clk, 10, units="ns")
+        cocotb.start_soon(clock.start())
+        await reset(dut)
+
+        frames = test_frames(points, width)
+        collector = cocotb.start_soon(
+            collect_spectra(dut, len(frames) - 1, width, points))
+        await stream_frames(dut, frames, width)
+        results = await collector
+
+        for frame, got in zip(frames, results):
+            expected = reference(frame)
+            assert got == expected, f"got {got}, expected {expected}"
+
+    @cocotb.test()
+    async def test_fft_handshake(dut):
+        """Check the ready/valid behaviour of the FFT."""
+        clock = cocotb.clock.Clock(dut.clk, 10, units="ns")
+        cocotb.start_soon(clock.start())
+        await reset(dut)
+
+        assert int(dut.in_ready.value) == 1, "the FFT has to accept a frame"
+        assert int(dut.out_valid.value) == 0, "there is no result yet"
+
+        frames = test_frames(points, width)[:2]
+        collector = cocotb.start_soon(collect_spectra(dut, 1, width, points))
+        await stream_frames(dut, frames, width)
+        results = await collector
+
+        expected = reference(frames[0])
+        assert results[0] == expected, f"got {results[0]}, expected {expected}"
+
+
 def make_fft_tests(**params):
     """Create the cocotb tests of a single FFT configuration."""
     width = params["width"]

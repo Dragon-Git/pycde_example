@@ -112,8 +112,16 @@ def CommutatorSchedule(period: int = 4):
 
 
 @modparams
-def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
-    """The delay commutator architecture of the FFT."""
+def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage",
+           stallable: bool = False):
+    """The delay commutator architecture of the FFT.
+
+    The chain is free running by default: it takes a sample on every cycle and
+    only stands still while it hands its spectrum over.  With ``stallable`` the
+    outer control gets an ``in_enable`` input and may hold the chain still, which
+    is what an architecture built out of several chains needs - the leading
+    butterfly of such a design only has a sample for them now and then.
+    """
     if scaling not in SCALINGS:
         raise ValueError(f"scaling must be one of {SCALINGS}, got {scaling!r}")
     if points < 2 or (points & (points - 1)):
@@ -140,6 +148,8 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
         out_real = Output(Bits(width))
         out_imag = Output(Bits(width))
         out_ready = Input(Bits(1))
+        if stallable:
+            in_enable = Input(Bits(1))
 
         @generator
         def construct(io):
@@ -191,6 +201,9 @@ def FftSdc(width: int = 16, points: int = 16, scaling: str = "stage"):
             # destroy it.
             out_held = sending
             advance = ~out_held
+            if stallable:
+                # the outer control decides whether the chain runs at all
+                advance = advance & io.in_enable
             # the frame grid, however, is anchored at the first sample: the
             # counters must not move before it arrives, or the idle cycles
             # would shift every frame
