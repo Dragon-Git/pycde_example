@@ -61,7 +61,9 @@ def FftSdfRadix(width: int = 16, points: int = 16, radices: str = "4",
 
     count_width = max(1, (points - 1).bit_length())
     latency = points - 1
-    adv_width = max(1, (latency + points).bit_length())
+    # the chain is fed for `points` cycles and drains for as many again
+    drain_length = points
+    adv_width = max(1, (latency + 2 * points).bit_length())
     table = twiddle_table(points, width)
     maximum = (1 << (width - 1)) - 1
 
@@ -227,8 +229,12 @@ def FftSdfRadix(width: int = 16, points: int = 16, radices: str = "4",
 
             accept = io.in_valid & receiving
             last_input = (in_count == UInt(count_width)(points - 1)).as_bits()
+            # The chain hands a result out on every cycle once it is filled, so
+            # the drain lasts `points` cycles and not `latency`: the first
+            # result appears after `latency` cycles and the last one `points`
+            # cycles later.
             last_drain = (drain_count
-                          == UInt(adv_width)(latency - 1)).as_bits()
+                          == UInt(adv_width)(drain_length - 1)).as_bits()
             last_output = (out_count == UInt(count_width)(points - 1)).as_bits()
             frame_done = sending & last_output & io.out_ready
 
