@@ -1,0 +1,82 @@
+# Temporary: trace the two point memory based FFT of the debug branch.
+#
+# The two point hybrid configurations fail in the stress matrix, and the failure
+# cannot be reproduced on an arm64 host (pycde is published for x86_64 only).
+# This workflow generates their RTL, prints the control logic and runs a trace
+# which dumps the state of the design cycle by cycle.
+
+name: Debug the two point FFT
+
+on:
+  push:
+    paths:
+      - ".github/workflows/debug-p2.yml"
+      - "debug_p2/**"
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install verilator
+        uses: veryl-lang/setup-verilator@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          export COCOTB_IGNORE_PYTHON_REQUIRES="True"
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Generate the two point hybrid RTL
+        run: |
+          python - <<'PY'
+          from pycde_example.fft import build_fft_system
+          from pycde_example.fft_configs import _config
+
+          cfgs = [
+              _config(width=16, points=2, ordering=ordering,
+                      twiddle_mode="hybrid", scaling=scaling)
+              for ordering in ("dit", "dif")
+              for scaling in ("stage", "none")
+          ]
+          for cfg in cfgs:
+              print(cfg["name"], cfg["rtl"])
+          build_fft_system(configs=cfgs, output_directory="build/ip_fft_lib")
+          PY
+
+      - name: Show the generated control logic
+        run: |
+          for f in build/ip_fft_lib/FftMemoryHybridDitR2W16P2/hw/*.sv; do
+            echo "===== $f"
+            grep -n -v "mem_re_\|mem_im_" "$f" | head -400
+          done
+
+      - name: Write the manifest
+        run: |
+          python - <<'PY'
+          import json
+
+          json.dump([
+              {
+                  "test_module": "debug_p2.test_trace",
+                  "rtl_name": "FftMemoryHybridDitR2W16P2",
+                  "rtl": "build/ip_fft_lib/FftMemoryHybridDitR2W16P2/hw/Fft.sv",
+                  "params": {},
+              },
+          ], open("debug_p2/manifest.json", "w"))
+          PY
+
+      - name: Trace the design
+        env:
+          FFT_STRESS_MANIFEST: debug_p2/manifest.json
+          PYTHONPATH: .
+        run: |
+          python -m pytest debug_p2 -q -s
