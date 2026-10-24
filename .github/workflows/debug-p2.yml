@@ -11,7 +11,7 @@ on:
   push:
     paths:
       - ".github/workflows/debug-p2.yml"
-      - "debug_p2/**"
+      - "pycde_example/debug_trace.py"
 
 jobs:
   debug:
@@ -63,20 +63,22 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import os
 
+          os.makedirs("build/debug", exist_ok=True)
           json.dump([
               {
-                  "test_module": "debug_p2.test_trace",
+                  "test_module": "pycde_example.debug_trace",
                   "rtl_name": "FftMemoryHybridDitR2W16P2",
                   "rtl": "build/ip_fft_lib/FftMemoryHybridDitR2W16P2/hw/Fft.sv",
                   "params": {},
               },
-          ], open("debug_p2/manifest.json", "w"))
+          ], open("build/debug/manifest.json", "w"))
           PY
 
       - name: Trace the design
         env:
-          FFT_STRESS_MANIFEST: debug_p2/manifest.json
+          FFT_STRESS_MANIFEST: build/debug/manifest.json
           PYTHONPATH: .
         run: |
-          python -m pytest debug_p2 -q -s
+          python -m pytest pycde_example/debug_trace.py -q -s
