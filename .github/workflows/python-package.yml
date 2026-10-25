@@ -47,6 +47,7 @@ jobs:
         python pycde_example/*.py
         python -m pycde_example.mini_riscv
         python -m pycde_example.cordic
+        python -m pycde_example.fft
 
     - name: Test with pytest
       run: |

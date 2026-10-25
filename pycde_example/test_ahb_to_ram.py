@@ -4,6 +4,8 @@ import pytest
 from cocotb.triggers import RisingEdge
 from cocotbext.ahb import AHBBus, AHBLiteMaster
 
+from .cocotb_runner import run_cocotb
+
 
 async def monitor(dut):
     while True:
@@ -38,4 +40,4 @@ async def random_test(dut):
 
 @pytest.mark.parametrize("cnt", list(range(100)))
 def test_ahb_sram_runner(cnt):
-    pass
+    run_cocotb(__name__)

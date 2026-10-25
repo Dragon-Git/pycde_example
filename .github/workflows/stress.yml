@@ -1,0 +1,80 @@
+# The stress matrix: the whole accepted parameter space, through the RTL, with the
+# complete vector set.
+#
+# The regular matrix in python-package.yml is a selection - about fifty shapes -
+# because every point of it costs a Verilator build and a simulation, and its job
+# is a fast answer on every push.  This workflow is the other half: 1752
+# configurations, split over twenty machines, each one simulated with every shape
+# a transform has to get right rather than the three frames the regular matrix
+# uses.
+#
+# The arithmetic of all 1752 is already covered on every push by
+# `pycde_example/test_fft_matrix.py`, which compares each configuration with NumPy.
+# What this adds is the datapath of each one: that the generated hardware for a
+# given shape computes what the model for that shape says.
+#
+# It is not part of the push gate because it takes a while, and it is not on a
+# schedule either: run it when a release is being cut, or when a change touches the
+# way a datapath is built - manually, from the Actions tab.
+
+name: Stress matrix
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stress:
+    name: shard ${{ matrix.shard }} of ${{ matrix.shards }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        # one Python version: what is being verified is the generated hardware,
+        # which does not depend on the version that generated it
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                11, 12, 13, 14, 15, 16, 17, 18, 19]
+        shards: [20]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install verilator
+        uses: veryl-lang/setup-verilator@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          export COCOTB_IGNORE_PYTHON_REQUIRES="True"
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Generate the RTL and the test modules of this shard
+        run: |
+          mkdir -p build
+          python tools/stress_matrix.py \
+            --shard ${{ matrix.shard }} --shards ${{ matrix.shards }} \
+            --output build/stress --rtl build/ip_fft_lib
+
+      - name: Simulate every configuration of this shard
+        env:
+          FFT_STRESS_MANIFEST: build/stress/manifest.json
+          PYTHONPATH: build/stress
+        run: |
+          # `-n auto` spreads the simulations of this shard over the cores of the
+          # machine; every configuration has its own build directory, so they do
+          # not collide
+          pytest build/stress/stress_tests -n auto --durations=10
+
+      - name: Keep the report of a failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-shard-${{ matrix.shard }}-report
+          path: |
+            build/stress/manifest.json
+          retention-days: 7
